@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Comandos Completos</title>
+    <title>Hill Climb Racing - Sistema de Pulo</title>
     <style>
         body {
             margin: 0;
@@ -49,8 +49,8 @@
             color: #fff;
         }
 
-        .danger {
-            color: #ff7675;
+        .jump-alert {
+            color: #55efc4;
             font-weight: bold;
         }
     </style>
@@ -58,14 +58,13 @@
 <body>
 
     <div id="game-container">
-        <h2>Hill Climb Racing - Clone</h2>
+        <h2>Hill Climb Racing - Botão de Pulo</h2>
         <canvas id="gameCanvas" width="900" height="450"></canvas>
         
         <div class="controls">
-            <p><strong>Controles no Chão:</strong> <span class="key">➡️</span> Acelerar | <span class="key">⬅️</span> Ré</p>
-            <p><strong>Controles no Ar:</strong> <span class="key">➡️</span> Girar p/ Frente | <span class="key">⬅️</span> Girar p/ Trás</p>
-            <p><strong>Novos Comandos:</strong> <span class="key">Espaço</span> Freio de Mão | <span class="key">R</span> Reiniciar Jogo</p>
-            <p class="danger">Se capotar ou travar, aperte R!</p>
+            <p><strong>Movimento:</strong> <span class="key">➡️</span> Acelerar | <span class="key">⬅️</span> Ré</p>
+            <p><strong class="jump-alert">Novo Comando:</strong> <span class="key">⬆️ Seta p/ Cima</span> ou <span class="key">W</span> para <strong>PULAR!</strong></p>
+            <p><strong>Extras:</strong> <span class="key">Espaço</span> Freio | <span class="key">R</span> Reiniciar</p>
         </div>
     </div>
 
@@ -73,7 +72,7 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // Estado inicial do carro para podermos resetar depois
+        // Estado do carro (adicionado força do pulo)
         const initialCarState = {
             x: 200,
             y: 100,
@@ -85,15 +84,14 @@
             height: 18,
             radius: 12,
             speed: 0.25,
+            jumpForce: -6.5,    // Força do impulso para cima
             friction: 0.98,
             gravity: 0.35,
             isGrounded: false
         };
 
-        // Copia as propriedades para o objeto do carro em execução
         let car = { ...initialCarState };
 
-        // Posição inicial das caixas para resetar
         const initialBoxes = [
             { x: 600, y: 0, size: 25, vx: 0, vy: 0 },
             { x: 1200, y: 0, size: 30, vx: 0, vy: 0 },
@@ -103,41 +101,36 @@
         
         let boxes = JSON.parse(JSON.stringify(initialBoxes));
 
-        // Registro de teclas pressionadas
-        const keys = { ArrowRight: false, ArrowLeft: false, Space: false };
+        // Registro de teclas (incluindo o pulo)
+        const keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false, Space: false };
 
         window.addEventListener("keydown", (e) => {
-            // Atalho para Reiniciar
-            if (e.key.toLowerCase() === 'r') {
-                resetGame();
-            }
-            // Mapeia as setas e o espaço
+            if (e.key.toLowerCase() === 'r') resetGame();
+            
             if (e.key === "ArrowRight") keys.ArrowRight = true;
             if (e.key === "ArrowLeft") keys.ArrowLeft = true;
+            if (e.key === "ArrowUp" || e.key.toLowerCase() === 'w') keys.ArrowUp = true;
             if (e.key === " " || e.key === "Spacebar") keys.Space = true;
         });
 
         window.addEventListener("keyup", (e) => {
             if (e.key === "ArrowRight") keys.ArrowRight = false;
             if (e.key === "ArrowLeft") keys.ArrowLeft = false;
+            if (e.key === "ArrowUp" || e.key.toLowerCase() === 'w') keys.ArrowUp = false;
             if (e.key === " " || e.key === "Spacebar") keys.Space = false;
         });
 
-        // Função que reconstrói o estado do jogo
         function resetGame() {
             car = { ...initialCarState };
             boxes = JSON.parse(JSON.stringify(initialBoxes));
         }
 
-        // Gera o terreno e as rampas
         function getTerrain(x) {
             let base = canvas.height - 120 + Math.sin(x * 0.006) * 60 + Math.sin(x * 0.002) * 40;
-            // Rampa 1
             if (x > 750 && x < 900) {
                 let rampaProgresso = (x - 750) / 150;
                 base -= rampaProgresso * 70;
             }
-            // Rampa 2
             if (x > 1600 && x < 1850) {
                 let rampaProgresso = (x - 1600) / 250;
                 base -= rampaProgresso * 110;
@@ -146,23 +139,26 @@
         }
 
         function update() {
-            // AÇÕES DOS COMANDOS
+            // LÓGICA DE MOVIMENTO E PULO
             if (car.isGrounded) {
                 if (keys.ArrowRight) car.vx += car.speed;
                 if (keys.ArrowLeft) car.vx -= car.speed;
                 
-                // Comando de Freio de mão (Para o carro rapidamente no chão)
-                if (keys.Space) {
-                    car.vx *= 0.85; 
+                // Executa o Pulo se estiver no chão
+                if (keys.ArrowUp) {
+                    car.vy = car.jumpForce;
+                    car.isGrounded = false; // Sai do chão imediatamente
                 }
+
+                if (keys.Space) car.vx *= 0.85; 
                 car.vAngle *= 0.5;
             } else {
-                // Comandos no ar (Giro)
+                // Controles de inclinação no ar
                 if (keys.ArrowRight) car.vAngle += 0.008;
                 if (keys.ArrowLeft) car.vAngle -= 0.008;
             }
 
-            // Física básica
+            // Aplicando a física
             car.vx *= car.friction;
             car.vy += car.gravity;
             car.angle += car.vAngle;
@@ -171,7 +167,7 @@
             car.x += car.vx;
             car.y += car.vy;
 
-            // Colisão com solo
+            // Colisão com o solo
             const groundY = getTerrain(car.x);
             const groundAheadY = getTerrain(car.x + 15); 
             const targetAngle = Math.atan2(groundAheadY - groundY, 15);
@@ -185,7 +181,7 @@
                 car.isGrounded = false;
             }
 
-            // Atualizar Caixas
+            // Atualização dos Obstáculos
             boxes.forEach(box => {
                 box.vy += car.gravity;
                 box.vx *= 0.95;
@@ -198,7 +194,6 @@
                     box.vy = 0;
                 }
 
-                // Colisão carro -> caixa
                 let distParaCaixa = Math.abs(car.x - box.x);
                 if (distParaCaixa < car.width / 2 + box.size / 2 && Math.abs(car.y - box.y) < box.size) {
                     box.vx = car.vx * 1.3;
@@ -207,14 +202,14 @@
                 }
             });
 
-            // RENDERIZAÇÃO (Desenho)
-            ctx.fillStyle = "#74b9ff"; // Céu
+            // DESENHO (RENDER)
+            ctx.fillStyle = "#74b9ff"; 
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.save();
             ctx.translate(-car.x + 200, 0);
 
-            // Desenhar chão
+            // Chão (Terra)
             ctx.beginPath();
             ctx.fillStyle = "#8c7ae6"; 
             for (let x = car.x - 300; x < car.x + 800; x += 4) {
