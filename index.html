@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Física, Rampas e Obstáculos</title>
+    <title>Hill Climb Racing - Comandos Completos</title>
     <style>
         body {
             margin: 0;
@@ -23,23 +23,34 @@
         }
 
         canvas {
-            background-color: #5c940d; /* Será desenhado o céu dinamicamente */
+            background-color: #74b9ff;
             border: 4px solid #fff;
             border-radius: 12px;
             box-shadow: 0 15px 30px rgba(0,0,0,0.7);
         }
 
         .controls {
-            margin-top: 15px;
+            margin-top: 12px;
             background: #2a2a2a;
-            padding: 15px;
+            padding: 12px;
             border-radius: 8px;
             display: inline-block;
             border: 1px solid #444;
+            font-size: 14px;
         }
 
-        span {
-            color: #ff3333;
+        .key {
+            background: #444;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border-bottom: 3px solid #111;
+            font-family: monospace;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .danger {
+            color: #ff7675;
             font-weight: bold;
         }
     </style>
@@ -47,12 +58,14 @@
 <body>
 
     <div id="game-container">
-        <h2>Hill Climb Racing - Física & Obstáculos</h2>
+        <h2>Hill Climb Racing - Clone</h2>
         <canvas id="gameCanvas" width="900" height="450"></canvas>
+        
         <div class="controls">
-            <p><strong>Controles no Chão:</strong> ➡️ Acelerar | ⬅️ Ré / Freio</p>
-            <p><strong>Controles no Ar (Física de Inclinação):</strong> ➡️ Girar p/ Frente | ⬅️ Girar p/ Trás (Empinar)</p>
-            <p><span>Cuidado para não capotar de cabeça para baixo!</span></p>
+            <p><strong>Controles no Chão:</strong> <span class="key">➡️</span> Acelerar | <span class="key">⬅️</span> Ré</p>
+            <p><strong>Controles no Ar:</strong> <span class="key">➡️</span> Girar p/ Frente | <span class="key">⬅️</span> Girar p/ Trás</p>
+            <p><strong>Novos Comandos:</strong> <span class="key">Espaço</span> Freio de Mão | <span class="key">R</span> Reiniciar Jogo</p>
+            <p class="danger">Se capotar ou travar, aperte R!</p>
         </div>
     </div>
 
@@ -60,82 +73,106 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // --- CONFIGURAÇÕES DO CARRO ---
-        const car = {
+        // Estado inicial do carro para podermos resetar depois
+        const initialCarState = {
             x: 200,
             y: 100,
             vx: 0,
             vy: 0,
-            angle: 0,          // Ângulo de rotação do carro
-            vAngle: 0,         // Velocidade da rotação (no ar)
+            angle: 0,
+            vAngle: 0,
             width: 50,
             height: 18,
-            radius: 12,        // Tamanho das rodas
-            speed: 0.25,       // Potência do motor
-            friction: 0.98,    // Resistência do ar/atrito
-            gravity: 0.35,     // Gravidade aplicada
+            radius: 12,
+            speed: 0.25,
+            friction: 0.98,
+            gravity: 0.35,
             isGrounded: false
         };
 
-        // --- OBSTÁCULOS (Caixas com física simples) ---
-        const boxes = [
+        // Copia as propriedades para o objeto do carro em execução
+        let car = { ...initialCarState };
+
+        // Posição inicial das caixas para resetar
+        const initialBoxes = [
             { x: 600, y: 0, size: 25, vx: 0, vy: 0 },
             { x: 1200, y: 0, size: 30, vx: 0, vy: 0 },
-            { x: 1235, y: 0, size: 25, vx: 0, vy: 0 }, // Duas caixas juntas
+            { x: 1235, y: 0, size: 25, vx: 0, vy: 0 },
             { x: 2200, y: 0, size: 35, vx: 0, vy: 0 }
         ];
+        
+        let boxes = JSON.parse(JSON.stringify(initialBoxes));
 
-        // Teclado
-        const keys = { ArrowRight: false, ArrowLeft: false };
-        window.addEventListener("keydown", (e) => { if (e.key in keys) keys[e.key] = true; });
-        window.addEventListener("keyup", (e) => { if (e.key in keys) keys[e.key] = false; });
+        // Registro de teclas pressionadas
+        const keys = { ArrowRight: false, ArrowLeft: false, Space: false };
 
-        // --- TERRENO COM RAMPAS ARTIFICIAIS ---
+        window.addEventListener("keydown", (e) => {
+            // Atalho para Reiniciar
+            if (e.key.toLowerCase() === 'r') {
+                resetGame();
+            }
+            // Mapeia as setas e o espaço
+            if (e.key === "ArrowRight") keys.ArrowRight = true;
+            if (e.key === "ArrowLeft") keys.ArrowLeft = true;
+            if (e.key === " " || e.key === "Spacebar") keys.Space = true;
+        });
+
+        window.addEventListener("keyup", (e) => {
+            if (e.key === "ArrowRight") keys.ArrowRight = false;
+            if (e.key === "ArrowLeft") keys.ArrowLeft = false;
+            if (e.key === " " || e.key === "Spacebar") keys.Space = false;
+        });
+
+        // Função que reconstrói o estado do jogo
+        function resetGame() {
+            car = { ...initialCarState };
+            boxes = JSON.parse(JSON.stringify(initialBoxes));
+        }
+
+        // Gera o terreno e as rampas
         function getTerrain(x) {
-            // Base do terreno usando ondas normais (seno)
             let base = canvas.height - 120 + Math.sin(x * 0.006) * 60 + Math.sin(x * 0.002) * 40;
-            
-            // Rampa 1 (por volta do X: 800)
+            // Rampa 1
             if (x > 750 && x < 900) {
                 let rampaProgresso = (x - 750) / 150;
-                base -= rampaProgresso * 70; // Eleva o terreno abruptamente para criar a rampa
+                base -= rampaProgresso * 70;
             }
-            
-            // Rampa 2 gigante (por volta do X: 1700)
+            // Rampa 2
             if (x > 1600 && x < 1850) {
                 let rampaProgresso = (x - 1600) / 250;
                 base -= rampaProgresso * 110;
             }
-
             return base;
         }
 
-        // --- LOOP PRINCIPAL ---
         function update() {
-            // 1. INPUTS & FÍSICA DE ROTAÇÃO
+            // AÇÕES DOS COMANDOS
             if (car.isGrounded) {
-                // No chão: seta direita corre, seta esquerda freia/ré
                 if (keys.ArrowRight) car.vx += car.speed;
                 if (keys.ArrowLeft) car.vx -= car.speed;
-                car.vAngle *= 0.5; // Alinha com o chão
+                
+                // Comando de Freio de mão (Para o carro rapidamente no chão)
+                if (keys.Space) {
+                    car.vx *= 0.85; 
+                }
+                car.vAngle *= 0.5;
             } else {
-                // No ar: setas controlam a rotação/inclinação do carro
+                // Comandos no ar (Giro)
                 if (keys.ArrowRight) car.vAngle += 0.008;
                 if (keys.ArrowLeft) car.vAngle -= 0.008;
             }
 
-            // Aplicando gravidade e movimentação do carro
+            // Física básica
             car.vx *= car.friction;
             car.vy += car.gravity;
             car.angle += car.vAngle;
-            car.vAngle *= 0.95; // Atrito de rotação
+            car.vAngle *= 0.95;
 
             car.x += car.vx;
             car.y += car.vy;
 
-            // 2. COLISÃO DO CARRO COM O CHÃO (Alinhamento de inclinação)
+            // Colisão com solo
             const groundY = getTerrain(car.x);
-            // Pegamos um ponto ligeiramente à frente para calcular a inclinação do chão
             const groundAheadY = getTerrain(car.x + 15); 
             const targetAngle = Math.atan2(groundAheadY - groundY, 15);
 
@@ -143,50 +180,43 @@
                 car.y = groundY - car.radius;
                 car.vy = 0;
                 car.isGrounded = true;
-                
-                // Suaviza o ângulo do carro para colar no relevo da montanha
                 car.angle = car.angle * 0.6 + targetAngle * 0.4;
             } else {
                 car.isGrounded = false;
             }
 
-            // 3. FÍSICA E ATUALIZAÇÃO DOS OBSTÁCULOS (CAIXAS)
+            // Atualizar Caixas
             boxes.forEach(box => {
-                box.vy += car.gravity; // Gravidade na caixa
-                box.vx *= 0.95;        // Atrito no chão
-
+                box.vy += car.gravity;
+                box.vx *= 0.95;
                 box.x += box.vx;
                 box.y += box.vy;
 
-                // Colisão da caixa com o chão
                 const boxGround = getTerrain(box.x);
                 if (box.y + box.size >= boxGround) {
                     box.y = boxGround - box.size;
                     box.vy = 0;
                 }
 
-                // COLISÃO: Carro batendo na caixa
+                // Colisão carro -> caixa
                 let distParaCaixa = Math.abs(car.x - box.x);
                 if (distParaCaixa < car.width / 2 + box.size / 2 && Math.abs(car.y - box.y) < box.size) {
-                    // Empurra a caixa com base na velocidade do carro
-                    box.vx = car.vx * 1.2;
-                    box.vy = car.vy - 2; // Dá um leve pulinho ao impacto
-                    car.vx *= 0.7; // Carro perde um pouco de velocidade ao bater
+                    box.vx = car.vx * 1.3;
+                    box.vy = car.vy - 2;
+                    car.vx *= 0.7; 
                 }
             });
 
-            // 4. DESENHO DO CENÁRIO (RENDER)
-            // Limpa com o azul do céu
-            ctx.fillStyle = "#74b9ff";
+            // RENDERIZAÇÃO (Desenho)
+            ctx.fillStyle = "#74b9ff"; // Céu
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Câmera lateral seguindo o carro
             ctx.save();
             ctx.translate(-car.x + 200, 0);
 
-            // Desenhar Montanhas / Chão
+            // Desenhar chão
             ctx.beginPath();
-            ctx.fillStyle = "#8c7ae6"; // Terra escura/Sub-solo
+            ctx.fillStyle = "#8c7ae6"; 
             for (let x = car.x - 300; x < car.x + 800; x += 4) {
                 let ty = getTerrain(x);
                 if (x === car.x - 300) ctx.moveTo(x, canvas.height);
@@ -195,9 +225,9 @@
             ctx.lineTo(car.x + 800, canvas.height);
             ctx.fill();
 
-            // Desenhar Linha da Grama
+            // Grama
             ctx.beginPath();
-            ctx.strokeStyle = "#4cd137"; // Grama viva
+            ctx.strokeStyle = "#4cd137"; 
             ctx.lineWidth = 8;
             for (let x = car.x - 300; x < car.x + 800; x += 4) {
                 let ty = getTerrain(x);
@@ -206,52 +236,43 @@
             }
             ctx.stroke();
 
-            // Desenhar as Caixas (Obstáculos)
+            // Caixas
             boxes.forEach(box => {
-                ctx.fillStyle = "#e67e22"; // Cor de madeira
+                ctx.fillStyle = "#e67e22";
                 ctx.fillRect(box.x - box.size/2, box.y, box.size, box.size);
-                // Detalhe de "X" na caixa
                 ctx.strokeStyle = "#d35400";
                 ctx.lineWidth = 2;
                 ctx.strokeRect(box.x - box.size/2, box.y, box.size, box.size);
             });
 
-            // 5. DESENHAR O CARRO ROTACIONADO (FÍSICA DE INCLINAÇÃO)
+            // Desenhar Carro
             ctx.save();
-            ctx.translate(car.x, car.y); // Move a origem para o centro do carro
-            ctx.rotate(car.angle);        // Gira todo o desenho do carro
+            ctx.translate(car.x, car.y);
+            ctx.rotate(car.angle);
 
-            // Chassi Principal
-            ctx.fillStyle = "#e74c3c"; // Vermelho
+            ctx.fillStyle = "#e74c3c"; 
             ctx.fillRect(-car.width / 2, -car.height, car.width, car.height);
             
-            // Vidro / Teto
             ctx.fillStyle = "#3498db";
             ctx.fillRect(0, -car.height - 10, 18, 10);
 
-            // Rodas (Desenhadas em relação ao centro rotacionado)
+            // Rodas
             ctx.fillStyle = "#2d3436";
-            
-            ctx.beginPath(); // Roda Traseira
-            ctx.arc(-car.width / 3, 0, car.radius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = "#b2bec3"; // Aro
+            ctx.beginPath(); ctx.arc(-car.width / 3, 0, car.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#b2bec3";
             ctx.beginPath(); ctx.arc(-car.width / 3, 0, car.radius/2, 0, Math.PI * 2); ctx.fill();
 
             ctx.fillStyle = "#2d3436";
-            ctx.beginPath(); // Roda Dianteira
-            ctx.arc(car.width / 3, 0, car.radius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = "#b2bec3"; // Aro
+            ctx.beginPath(); ctx.arc(car.width / 3, 0, car.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#b2bec3";
             ctx.beginPath(); ctx.arc(car.width / 3, 0, car.radius/2, 0, Math.PI * 2); ctx.fill();
 
-            ctx.restore(); // Restaura rotação do carro
-            ctx.restore(); // Restaura câmera do cenário
+            ctx.restore();
+            ctx.restore();
 
             requestAnimationFrame(update);
         }
 
-        // Iniciar
         update();
     </script>
 </body>
