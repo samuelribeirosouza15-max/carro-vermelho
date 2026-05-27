@@ -3,69 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Super Pulo</title>
+    <title>Hill Climb Racing - Versão Completa</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             background-color: #1a1a1a;
             color: white;
-            font-family: 'Arial', sans-serif;
+            font-family: 'Arial Black', Gadget, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             overflow: hidden;
+            user-select: none;
         }
 
         #game-container {
+            position: relative;
             text-align: center;
         }
 
         canvas {
-            background-color: #74b9ff;
-            border: 4px solid #fff;
-            border-radius: 12px;
-            box-shadow: 0 15px 30px rgba(0,0,0,0.7);
+            border: 6px solid #fff;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
         }
 
-        .controls {
-            margin-top: 12px;
-            background: #2a2a2a;
-            padding: 12px;
-            border-radius: 8px;
+        /* Interface de Usuário por cima do jogo (HUD) */
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            text-align: left;
+            text-shadow: 2px 2px 0px #000;
+            font-size: 18px;
+            pointer-events: none;
+        }
+
+        .hud-item {
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+        }
+
+        .coin-txt { color: #f1c40f; }
+        .fuel-txt { color: #e74c3c; }
+
+        /* Barra de combustível baseada na imagem */
+        .fuel-bar-container {
+            width: 150px;
+            height: 15px;
+            background: #555;
+            border: 2px solid #fff;
+            border-radius: 5px;
             display: inline-block;
-            border: 1px solid #444;
-            font-size: 14px;
+            margin-left: 10px;
+            overflow: hidden;
         }
 
-        .key {
-            background: #444;
-            padding: 2px 6px;
-            border-radius: 4px;
-            border-bottom: 3px solid #111;
-            font-family: monospace;
-            font-weight: bold;
-            color: #fff;
+        .fuel-bar {
+            width: 100%;
+            height: 100%;
+            background: #2ecc71;
         }
 
-        .jump-alert {
-            color: #55efc4;
-            font-weight: bold;
+        /* Pedais visuais no estilo do jogo */
+        .pedals-container {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-sizing: border-box;
+            pointer-events: none;
         }
+
+        .pedal {
+            background: #7f8c8d;
+            border: 4px solid #fff;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #111;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+            text-shadow: none;
+        }
+
+        .pedal.active {
+            background: #d1d8e0;
+            transform: scale(0.95);
+        }
+
+        .instructions {
+            margin-top: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+            color: #bbb;
+        }
+        .key { background: #444; padding: 2px 5px; border-radius: 3px; color: #fff; }
     </style>
 </head>
 <body>
 
     <div id="game-container">
-        <h2>Hill Climb Racing - SUPER PULO ATIVADO!</h2>
+        <div class="hud">
+            <div class="hud-item coin-txt">🪙 MOEDAS: <span id="coin-score">0</span></div>
+            <div class="hud-item fuel-txt">
+                ⛽ GAS: 
+                <div class="fuel-bar-container">
+                    <div id="fuel-gauge" class="fuel-bar"></div>
+                </div>
+            </div>
+            <div id="game-over-txt" style="color: #e74c3c; font-size: 24px; display: none; margin-top: 10px;">SEM COMBUSTÍVEL! (Aperte R)</div>
+        </div>
+
         <canvas id="gameCanvas" width="900" height="450"></canvas>
+
+        <div class="pedals-container">
+            <div id="pedal-brake" class="pedal">BRAKE</div>
+            <div id="pedal-gas" class="pedal">GAS</div>
+        </div>
         
-        <div class="controls">
-            <p><strong>Movimento:</strong> <span class="key">➡️</span> Acelerar | <span class="key">⬅️</span> Ré</p>
-            <p><strong class="jump-alert">Super Pulo:</strong> Pressiona <span class="key">⬆️ Seta p/ Cima</span> ou <span class="key">W</span></p>
-            <p><strong>Ar (Rotação):</strong> <span class="key">➡️</span> Inclinar p/ frente | <span class="key">⬅️</span> Inclinar p/ trás</p>
-            <p><strong>Extras:</strong> <span class="key">Espaço</span> Freio | <span class="key">R</span> Reiniciar</p>
+        <div class="instructions">
+            Controles: <span class="key">➡️</span> Acelerar (GAS) | <span class="key">⬅️</span> Frear/Ré (BRAKE) | <span class="key">⬆️</span> Super Pulo | <span class="key">R</span> Reiniciar
         </div>
     </div>
 
@@ -73,89 +135,117 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // CONFIGURAÇÃO DO CARRO (Ajustado jumpForce para -11)
+        // Elementos do HTML para atualizar
+        const coinScoreEl = document.getElementById("coin-score");
+        const fuelGaugeEl = document.getElementById("fuel-gauge");
+        const gameOverTxt = document.getElementById("game-over-txt");
+        const pedalGas = document.getElementById("pedal-gas");
+        const pedalBrake = document.getElementById("pedal-brake");
+
+        // --- CONFIGURAÇÃO INICIAL DO JOGO ---
         const initialCarState = {
-            x: 200,
-            y: 100,
-            vx: 0,
-            vy: 0,
-            angle: 0,
-            vAngle: 0,
-            width: 50,
-            height: 18,
-            radius: 12,
-            speed: 0.25,
-            jumpForce: -11.0,    // MUDANÇA AQUI! De -6.5 para -11.0 para pular MUITO mais alto
-            friction: 0.98,
-            gravity: 0.35,
-            isGrounded: false
+            x: 200, y: 100, vx: 0, vy: 0,
+            angle: 0, vAngle: 0,
+            width: 55, height: 20, radius: 13,
+            speed: 0.28, jumpForce: -11.0, friction: 0.98, gravity: 0.35,
+            isGrounded: false,
+            fuel: 100,
+            coins: 0,
+            alive: true
         };
 
         let car = { ...initialCarState };
 
-        const initialBoxes = [
-            { x: 600, y: 0, size: 25, vx: 0, vy: 0 },
-            { x: 1200, y: 0, size: 30, vx: 0, vy: 0 },
-            { x: 1235, y: 0, size: 25, vx: 0, vy: 0 },
-            { x: 2200, y: 0, size: 35, vx: 0, vy: 0 }
+        // Itens coletáveis posicionados ao longo do mapa dinâmico
+        let items = [
+            { type: 'coin', x: 500, y: 0, size: 8, collected: false },
+            { type: 'coin', x: 550, y: 0, size: 8, collected: false },
+            { type: 'coin', x: 600, y: 0, size: 8, collected: false },
+            { type: 'fuel', x: 850, y: 0, size: 14, collected: false }, // Galão de gás após a rampa
+            { type: 'coin', x: 1100, y: 0, size: 8, collected: false },
+            { type: 'coin', x: 1150, y: 0, size: 8, collected: false },
+            { type: 'coin', x: 1400, y: 0, size: 8, collected: false },
+            { type: 'fuel', x: 1750, y: 0, size: 14, collected: false },
+            { type: 'coin', x: 2100, y: 0, size: 8, collected: false }
         ];
-        
-        let boxes = JSON.parse(JSON.stringify(initialBoxes));
 
-        const keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false, Space: false };
+        let activeItems = JSON.parse(JSON.stringify(items));
 
+        const keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false };
+
+        // Ouvintes do Teclado
         window.addEventListener("keydown", (e) => {
             if (e.key.toLowerCase() === 'r') resetGame();
-            
-            if (e.key === "ArrowRight") keys.ArrowRight = true;
-            if (e.key === "ArrowLeft") keys.ArrowLeft = true;
+            if (!car.alive) return;
+
+            if (e.key === "ArrowRight") { keys.ArrowRight = true; pedalGas.classList.add("active"); }
+            if (e.key === "ArrowLeft") { keys.ArrowLeft = true; pedalBrake.classList.add("active"); }
             if (e.key === "ArrowUp" || e.key.toLowerCase() === 'w') keys.ArrowUp = true;
-            if (e.key === " " || e.key === "Spacebar") keys.Space = true;
         });
 
         window.addEventListener("keyup", (e) => {
-            if (e.key === "ArrowRight") keys.ArrowRight = false;
-            if (e.key === "ArrowLeft") keys.ArrowLeft = false;
+            if (e.key === "ArrowRight") { keys.ArrowRight = false; pedalGas.classList.remove("active"); }
+            if (e.key === "ArrowLeft") { keys.ArrowLeft = false; pedalBrake.classList.remove("remove"); pedalBrake.classList.remove("active"); }
             if (e.key === "ArrowUp" || e.key.toLowerCase() === 'w') keys.ArrowUp = false;
-            if (e.key === " " || e.key === "Spacebar") keys.Space = false;
         });
 
         function resetGame() {
             car = { ...initialCarState };
-            boxes = JSON.parse(JSON.stringify(initialBoxes));
+            activeItems = JSON.parse(JSON.stringify(items));
+            gameOverTxt.style.display = "none";
+            coinScoreEl.innerText = "0";
+            fuelGaugeEl.style.width = "100%";
+            fuelGaugeEl.style.background = "#2ecc71";
         }
 
+        // Geração do relevo das colinas e montanhas (Estilo Hill Climb)
         function getTerrain(x) {
-            let base = canvas.height - 120 + Math.sin(x * 0.006) * 60 + Math.sin(x * 0.002) * 40;
+            let base = canvas.height - 110 + Math.sin(x * 0.006) * 55 + Math.sin(x * 0.002) * 35;
+            // Configuração das Rampas artificiais
             if (x > 750 && x < 900) {
-                let rampaProgresso = (x - 750) / 150;
-                base -= rampaProgresso * 70;
+                base -= ((x - 750) / 150) * 75;
             }
             if (x > 1600 && x < 1850) {
-                let rampaProgresso = (x - 1600) / 250;
-                base -= rampaProgresso * 110;
+                base -= ((x - 1600) / 250) * 110;
             }
             return base;
         }
 
         function update() {
-            if (car.isGrounded) {
-                if (keys.ArrowRight) car.vx += car.speed;
-                if (keys.ArrowLeft) car.vx -= car.speed;
-                
-                if (keys.ArrowUp) {
-                    car.vy = car.jumpForce;
-                    car.isGrounded = false;
+            if (car.alive) {
+                // Consumo de combustível contínuo (Gasta mais se acelerar)
+                let fuelBurn = 0.08;
+                if (keys.ArrowRight) fuelBurn = 0.18;
+                car.fuel -= fuelBurn;
+
+                if (car.fuel <= 0) {
+                    car.fuel = 0;
+                    car.alive = false;
+                    gameOverTxt.style.display = "block";
                 }
 
-                if (keys.Space) car.vx *= 0.85; 
-                car.vAngle *= 0.5;
-            } else {
-                // Controlos no ar (Aproveita a altura do super pulo para dar piruetas!)
-                if (keys.ArrowRight) car.vAngle += 0.01;
-                if (keys.ArrowLeft) car.vAngle -= 0.01;
+                // Interface de atualização do combustível
+                fuelGaugeEl.style.width = car.fuel + "%";
+                if (car.fuel < 30) fuelGaugeEl.style.background = "#e74c3c"; // Alerta vermelho
+
+                // Processar comandos físicos
+                if (car.isGrounded) {
+                    if (keys.ArrowRight) car.vx += car.speed;
+                    if (keys.ArrowLeft) car.vx -= car.speed * 0.6; // Ré é mais lenta
+                    
+                    if (keys.ArrowUp) {
+                        car.vy = car.jumpForce;
+                        car.isGrounded = false;
+                    }
+                    car.vAngle *= 0.4;
+                } else {
+                    // Controles de rotação aérea (Manobras)
+                    if (keys.ArrowRight) car.vAngle += 0.008;
+                    if (keys.ArrowLeft) car.vAngle -= 0.008;
+                }
             }
 
+            // Aplicar atrito e forças no carro
             car.vx *= car.friction;
             car.vy += car.gravity;
             car.angle += car.vAngle;
@@ -164,14 +254,12 @@
             car.x += car.vx;
             car.y += car.vy;
 
-            // Se o carro voar tão alto que sai do topo da tela, impede que ele suma para sempre
-            if (car.y < -100) {
-                car.y = -100;
-                car.vy = 0;
-            }
+            // Trava do topo da tela
+            if (car.y < -100) { car.y = -100; car.vy = 0; }
 
+            // Alinhamento com o solo
             const groundY = getTerrain(car.x);
-            const groundAheadY = getTerrain(car.x + 15); 
+            const groundAheadY = getTerrain(car.x + 15);
             const targetAngle = Math.atan2(groundAheadY - groundY, 15);
 
             if (car.y + car.radius >= groundY) {
@@ -183,35 +271,34 @@
                 car.isGrounded = false;
             }
 
-            boxes.forEach(box => {
-                box.vy += car.gravity;
-                box.vx *= 0.95;
-                box.x += box.vx;
-                box.y += box.vy;
+            // Ajustar altura dos itens (moedas e combustíveis) de acordo com o relevo
+            activeItems.forEach(item => {
+                item.y = getTerrain(item.x) - (item.type === 'fuel' ? 25 : 20);
 
-                const boxGround = getTerrain(box.x);
-                if (box.y + box.size >= boxGround) {
-                    box.y = groundY - box.size; // ajustado para estabilidade
-                    box.vy = 0;
-                }
-
-                let distParaCaixa = Math.abs(car.x - box.x);
-                if (distParaCaixa < car.width / 2 + box.size / 2 && Math.abs(car.y - box.y) < box.size) {
-                    box.vx = car.vx * 1.3;
-                    box.vy = car.vy - 2;
-                    car.vx *= 0.7; 
+                // Sistema de colisão/coleta (Carro pega o item)
+                if (!item.collected && Math.abs(car.x - item.x) < 30 && Math.abs(car.y - item.y) < 30) {
+                    item.collected = true;
+                    if (item.type === 'coin') {
+                        car.coins += 500; // Cada moeda dá 500 pontos igual a foto
+                        coinScoreEl.innerText = car.coins;
+                    } else if (item.type === 'fuel') {
+                        car.fuel = Math.min(100, car.fuel + 45); // Recarrega gás
+                        fuelGaugeEl.style.background = "#2ecc71";
+                    }
                 }
             });
 
-            ctx.fillStyle = "#74b9ff"; 
+            // --- RENDERIZAR GRÁFICOS ---
+            // Céu Azul Claro
+            ctx.fillStyle = "#74b9ff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.save();
-            ctx.translate(-car.x + 200, 0);
+            ctx.translate(-car.x + 200, 0); // Efeito de câmera side-scroller
 
-            // Chão
+            // Desenhar Relevo de Terra
             ctx.beginPath();
-            ctx.fillStyle = "#8c7ae6"; 
+            ctx.fillStyle = "#795548"; 
             for (let x = car.x - 300; x < car.x + 1200; x += 4) {
                 let ty = getTerrain(x);
                 if (x === car.x - 300) ctx.moveTo(x, canvas.height);
@@ -220,10 +307,10 @@
             ctx.lineTo(car.x + 1200, canvas.height);
             ctx.fill();
 
-            // Grama
+            // Desenhar Linha de Grama Superior
             ctx.beginPath();
-            ctx.strokeStyle = "#4cd137"; 
-            ctx.lineWidth = 8;
+            ctx.strokeStyle = "#27ae60"; 
+            ctx.lineWidth = 6;
             for (let x = car.x - 300; x < car.x + 1200; x += 4) {
                 let ty = getTerrain(x);
                 if (x === car.x - 300) ctx.moveTo(x, ty);
@@ -231,36 +318,58 @@
             }
             ctx.stroke();
 
-            // Caixas
-            boxes.forEach(box => {
-                ctx.fillStyle = "#e67e22";
-                ctx.fillRect(box.x - box.size/2, box.y, box.size, box.size);
-                ctx.strokeStyle = "#d35400";
-                ctx.lineWidth = 2;
-                ctx.strokeRect(box.x - box.size/2, box.y, box.size, box.size);
+            // Desenhar Moedas e Galões de Combustível na Pista
+            activeItems.forEach(item => {
+                if (!item.collected) {
+                    if (item.type === 'coin') {
+                        // Desenha moedas amarelas brilhantes
+                        ctx.fillStyle = "#f1c40f";
+                        ctx.strokeStyle = "#f39c12";
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.arc(item.x, item.y, item.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    } else if (item.type === 'fuel') {
+                        // Desenha galão de gasolina vermelho igual da imagem
+                        ctx.fillStyle = "#e74c3c";
+                        ctx.fillRect(item.x - 10, item.y - 12, 20, 24);
+                        ctx.fillStyle = "#fff"; // Alça/Tampa
+                        ctx.fillRect(item.x - 6, item.y - 16, 12, 4);
+                        ctx.fillStyle = "#111"; // Detalhe "GAS" escrito no galão
+                        ctx.font = "bold 9px Arial";
+                        ctx.fillText("GAS", item.x - 9, item.y + 3);
+                    }
+                }
             });
 
-            // Carro
+            // DESENHAR O CARRO VERMELHO ESTILO HILL CLIMB
             ctx.save();
             ctx.translate(car.x, car.y);
             ctx.rotate(car.angle);
 
-            ctx.fillStyle = "#e74c3c"; 
+            // Corpo do jipe/carro vermelho
+            ctx.fillStyle = "#c0392b"; 
             ctx.fillRect(-car.width / 2, -car.height, car.width, car.height);
             
+            // Parte de trás arqueada do jipe
+            ctx.fillStyle = "#e74c3c";
+            ctx.fillRect(-car.width / 2, -car.height - 6, 18, 6);
+
+            // Vidro dianteiro
             ctx.fillStyle = "#3498db";
-            ctx.fillRect(0, -car.height - 10, 18, 10);
+            ctx.fillRect(8, -car.height - 12, 14, 12);
 
-            // Rodas
-            ctx.fillStyle = "#2d3436";
-            ctx.beginPath(); ctx.arc(-car.width / 3, 0, car.radius, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = "#b2bec3";
-            ctx.beginPath(); ctx.arc(-car.width / 3, 0, car.radius/2, 0, Math.PI * 2); ctx.fill();
+            // Rodas Grandes Pretas com Aro Prata (Estilo Fingerprint Monster das fotos)
+            ctx.fillStyle = "#2c3e50";
+            ctx.beginPath(); ctx.arc(-car.width / 3, 2, car.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#bdc3c7";
+            ctx.beginPath(); ctx.arc(-car.width / 3, 2, car.radius/2, 0, Math.PI * 2); ctx.fill();
 
-            ctx.fillStyle = "#2d3436";
-            ctx.beginPath(); ctx.arc(car.width / 3, 0, car.radius, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = "#b2bec3";
-            ctx.beginPath(); ctx.arc(car.width / 3, 0, car.radius/2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#2c3e50";
+            ctx.beginPath(); ctx.arc(car.width / 3, 2, car.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "#bdc3c7";
+            ctx.beginPath(); ctx.arc(car.width / 3, 2, car.radius/2, 0, Math.PI * 2); ctx.fill();
 
             ctx.restore();
             ctx.restore();
