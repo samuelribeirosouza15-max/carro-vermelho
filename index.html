@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Versão Completa</title>
+    <title>Hill Climb Racing - Versão Max</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            background-color: #1a1a1a;
+            background-color: #111;
             color: white;
             font-family: 'Arial Black', Gadget, sans-serif;
             display: flex;
@@ -30,7 +30,6 @@
             box-shadow: 0 20px 40px rgba(0,0,0,0.8);
         }
 
-        /* Interface de Usuário por cima do jogo (HUD) */
         .hud {
             position: absolute;
             top: 20px;
@@ -49,8 +48,8 @@
 
         .coin-txt { color: #f1c40f; }
         .fuel-txt { color: #e74c3c; }
+        .dist-txt { color: #fff; }
 
-        /* Barra de combustível baseada na imagem */
         .fuel-bar-container {
             width: 150px;
             height: 15px;
@@ -68,7 +67,6 @@
             background: #2ecc71;
         }
 
-        /* Pedais visuais no estilo do jogo */
         .pedals-container {
             position: absolute;
             bottom: 30px;
@@ -88,13 +86,25 @@
             font-size: 16px;
             color: #111;
             box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
-            text-shadow: none;
         }
 
         .pedal.active {
             background: #d1d8e0;
             transform: scale(0.95);
         }
+
+        #game-over-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 15px;
+        }
+
+        #game-over-screen h1 { color: #e74c3c; font-size: 40px; margin-bottom: 10px; text-shadow: 3px 3px 0 #000; }
 
         .instructions {
             margin-top: 10px;
@@ -110,16 +120,21 @@
     <div id="game-container">
         <div class="hud">
             <div class="hud-item coin-txt">🪙 MOEDAS: <span id="coin-score">0</span></div>
+            <div class="hud-item dist-txt">🏁 DISTÂNCIA: <span id="dist-score">0</span>m</div>
             <div class="hud-item fuel-txt">
-                ⛽ GAS: 
+                Bus: 
                 <div class="fuel-bar-container">
                     <div id="fuel-gauge" class="fuel-bar"></div>
                 </div>
             </div>
-            <div id="game-over-txt" style="color: #e74c3c; font-size: 24px; display: none; margin-top: 10px;">SEM COMBUSTÍVEL! (Aperte R)</div>
         </div>
 
         <canvas id="gameCanvas" width="900" height="450"></canvas>
+
+        <div id="game-over-screen">
+            <h1 id="fail-reason">GAME OVER</h1>
+            <p>Pressione <span class="key">R</span> para Recomeçar</p>
+        </div>
 
         <div class="pedals-container">
             <div id="pedal-brake" class="pedal">BRAKE</div>
@@ -127,7 +142,7 @@
         </div>
         
         <div class="instructions">
-            Controles: <span class="key">➡️</span> Acelerar (GAS) | <span class="key">⬅️</span> Frear/Ré (BRAKE) | <span class="key">⬆️</span> Super Pulo | <span class="key">R</span> Reiniciar
+            Controles: <span class="key">➡️</span> GAS | <span class="key">⬅️</span> BRAKE | <span class="key">⬆️</span> Super Pulo | <span class="key">R</span> Reset
         </div>
     </div>
 
@@ -135,49 +150,35 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // Elementos do HTML para atualizar
         const coinScoreEl = document.getElementById("coin-score");
+        const distScoreEl = document.getElementById("dist-score");
         const fuelGaugeEl = document.getElementById("fuel-gauge");
-        const gameOverTxt = document.getElementById("game-over-txt");
+        const gameOverScreen = document.getElementById("game-over-screen");
+        const failReasonEl = document.getElementById("fail-reason");
         const pedalGas = document.getElementById("pedal-gas");
         const pedalBrake = document.getElementById("pedal-brake");
 
-        // --- CONFIGURAÇÃO INICIAL DO JOGO ---
+        // --- CONFIGURAÇÃO DO CARRO ---
         const initialCarState = {
             x: 200, y: 100, vx: 0, vy: 0,
             angle: 0, vAngle: 0,
-            width: 55, height: 20, radius: 13,
-            speed: 0.28, jumpForce: -11.0, friction: 0.98, gravity: 0.35,
-            isGrounded: false,
-            fuel: 100,
-            coins: 0,
-            alive: true
+            width: 54, height: 18, radius: 12,
+            speed: 0.3, jumpForce: -11.5, friction: 0.98, gravity: 0.35,
+            isGrounded: false, fuel: 100, coins: 0, distance: 0, alive: true
         };
 
         let car = { ...initialCarState };
+        let particles = [];
+        let spawnMarkers = {}; // Controla onde moedas/gás já foram gerados no mapa infinito
 
-        // Itens coletáveis posicionados ao longo do mapa dinâmico
-        let items = [
-            { type: 'coin', x: 500, y: 0, size: 8, collected: false },
-            { type: 'coin', x: 550, y: 0, size: 8, collected: false },
-            { type: 'coin', x: 600, y: 0, size: 8, collected: false },
-            { type: 'fuel', x: 850, y: 0, size: 14, collected: false }, // Galão de gás após a rampa
-            { type: 'coin', x: 1100, y: 0, size: 8, collected: false },
-            { type: 'coin', x: 1150, y: 0, size: 8, collected: false },
-            { type: 'coin', x: 1400, y: 0, size: 8, collected: false },
-            { type: 'fuel', x: 1750, y: 0, size: 14, collected: false },
-            { type: 'coin', x: 2100, y: 0, size: 8, collected: false }
-        ];
-
-        let activeItems = JSON.parse(JSON.stringify(items));
+        // Estrutura dinâmica para itens coletáveis
+        let activeItems = [];
 
         const keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false };
 
-        // Ouvintes do Teclado
         window.addEventListener("keydown", (e) => {
             if (e.key.toLowerCase() === 'r') resetGame();
             if (!car.alive) return;
-
             if (e.key === "ArrowRight") { keys.ArrowRight = true; pedalGas.classList.add("active"); }
             if (e.key === "ArrowLeft") { keys.ArrowLeft = true; pedalBrake.classList.add("active"); }
             if (e.key === "ArrowUp" || e.key.toLowerCase() === 'w') keys.ArrowUp = true;
@@ -185,79 +186,122 @@
 
         window.addEventListener("keyup", (e) => {
             if (e.key === "ArrowRight") { keys.ArrowRight = false; pedalGas.classList.remove("active"); }
-            if (e.key === "ArrowLeft") { keys.ArrowLeft = false; pedalBrake.classList.remove("remove"); pedalBrake.classList.remove("active"); }
+            if (e.key === "ArrowLeft") { keys.ArrowLeft = false; pedalBrake.classList.remove("active"); }
             if (e.key === "ArrowUp" || e.key.toLowerCase() === 'w') keys.ArrowUp = false;
         });
 
         function resetGame() {
             car = { ...initialCarState };
-            activeItems = JSON.parse(JSON.stringify(items));
-            gameOverTxt.style.display = "none";
+            activeItems = [];
+            particles = [];
+            spawnMarkers = {};
+            gameOverScreen.style.display = "none";
             coinScoreEl.innerText = "0";
+            distScoreEl.innerText = "0";
             fuelGaugeEl.style.width = "100%";
             fuelGaugeEl.style.background = "#2ecc71";
         }
 
-        // Geração do relevo das colinas e montanhas (Estilo Hill Climb)
+        // --- GERADOR DE TERRENO INFINITO PROCEDURAL ---
         function getTerrain(x) {
-            let base = canvas.height - 110 + Math.sin(x * 0.006) * 55 + Math.sin(x * 0.002) * 35;
-            // Configuração das Rampas artificiais
-            if (x > 750 && x < 900) {
-                base -= ((x - 750) / 150) * 75;
-            }
-            if (x > 1600 && x < 1850) {
-                base -= ((x - 1600) / 250) * 110;
+            // Combinação de ondas seno para gerar subidas/descidas infinitas e variadas
+            let base = canvas.height - 110 + Math.sin(x * 0.005) * 60 + Math.sin(x * 0.0015) * 40;
+            
+            // Adiciona rampas surpresas geradas matematicamente a cada 1200 pixels
+            let rampaSet = Math.floor(x / 1200);
+            let rampaLocalX = x % 1200;
+            if (rampaSet > 0 && rampaLocalX > 800 && rampaLocalX < 1000) {
+                base -= ((rampaLocalX - 800) / 200) * 90;
             }
             return base;
         }
 
+        // --- GERADOR DE ITENS PROCEDURAL (Moedas e Combustível Infinitos) ---
+        function generateItemsAround(carX) {
+            // Define o bloco atual do mapa (de 400 em 400 pixels)
+            let block = Math.floor(carX / 400);
+            
+            // Se este bloco ainda não gerou itens, cria novos à frente do jogador
+            for (let i = block - 1; i <= block + 3; i++) {
+                if (!spawnMarkers[i] && i > 0) {
+                    spawnMarkers[i] = true;
+                    let spawnX = i * 400 + Math.random() * 100;
+                    
+                    // A cada 3 blocos gera um Galão de Gás, nos outros gera fileiras de moedas
+                    if (i % 3 === 0) {
+                        activeItems.push({ type: 'fuel', x: spawnX, y: 0, size: 14, collected: false });
+                    } else {
+                        activeItems.push({ type: 'coin', x: spawnX, y: 0, size: 8, collected: false });
+                        activeItems.push({ type: 'coin', x: spawnX + 40, y: 0, size: 8, collected: false });
+                        activeItems.push({ type: 'coin', x: spawnX + 80, y: 0, size: 8, collected: false });
+                    }
+                }
+            }
+        }
+
+        // --- SISTEMA DE PARTÍCULAS (FUMAÇA) ---
+        function createSmoke(x, y) {
+            if (Math.random() < 0.4) {
+                particles.push({
+                    x: x, y: y,
+                    vx: -1 - Math.random() * 2,
+                    vy: -Math.random() * 1,
+                    size: 4 + Math.random() * 6,
+                    alpha: 1
+                });
+            }
+        }
+
         function update() {
             if (car.alive) {
-                // Consumo de combustível contínuo (Gasta mais se acelerar)
-                let fuelBurn = 0.08;
-                if (keys.ArrowRight) fuelBurn = 0.18;
+                // Consumo do combustível
+                let fuelBurn = 0.07;
+                if (keys.ArrowRight) {
+                    fuelBurn = 0.16;
+                    // Cria fumaça saindo da traseira do carro ao acelerar
+                    let backX = car.x - Math.cos(car.angle) * 25;
+                    let backY = car.y - Math.sin(car.angle) * 10;
+                    createSmoke(backX, backY);
+                }
                 car.fuel -= fuelBurn;
 
                 if (car.fuel <= 0) {
-                    car.fuel = 0;
-                    car.alive = false;
-                    gameOverTxt.style.display = "block";
+                    car.fuel = 0; car.alive = false;
+                    failReasonEl.innerText = "SEM COMBUSTÍVEL!";
+                    gameOverScreen.style.display = "flex";
                 }
 
-                // Interface de atualização do combustível
-                fuelGaugeEl.style.width = car.fuel + "%";
-                if (car.fuel < 30) fuelGaugeEl.style.background = "#e74c3c"; // Alerta vermelho
-
-                // Processar comandos físicos
+                // Movimento básico
                 if (car.isGrounded) {
                     if (keys.ArrowRight) car.vx += car.speed;
-                    if (keys.ArrowLeft) car.vx -= car.speed * 0.6; // Ré é mais lenta
-                    
+                    if (keys.ArrowLeft) car.vx -= car.speed * 0.6;
                     if (keys.ArrowUp) {
                         car.vy = car.jumpForce;
                         car.isGrounded = false;
+                        for(let k=0; k<5; k++) createSmoke(car.x, car.y); // Fumaça de impulso
                     }
                     car.vAngle *= 0.4;
                 } else {
-                    // Controles de rotação aérea (Manobras)
-                    if (keys.ArrowRight) car.vAngle += 0.008;
-                    if (keys.ArrowLeft) car.vAngle -= 0.008;
+                    if (keys.ArrowRight) car.vAngle += 0.009;
+                    if (keys.ArrowLeft) car.vAngle -= 0.009;
+                }
+
+                // Calcula distância em metros percorrida
+                let currentDist = Math.floor(car.x / 10) - 20;
+                if (currentDist > car.distance) {
+                    car.distance = currentDist;
+                    distScoreEl.innerText = car.distance;
                 }
             }
 
-            // Aplicar atrito e forças no carro
-            car.vx *= car.friction;
-            car.vy += car.gravity;
-            car.angle += car.vAngle;
-            car.vAngle *= 0.95;
+            // Física do Carro
+            car.vx *= car.friction; car.vy += car.gravity;
+            car.angle += car.vAngle; car.vAngle *= 0.95;
+            car.x += car.vx; car.y += car.vy;
 
-            car.x += car.vx;
-            car.y += car.vy;
+            if (car.y < -150) { car.y = -150; car.vy = 0; }
 
-            // Trava do topo da tela
-            if (car.y < -100) { car.y = -100; car.vy = 0; }
-
-            // Alinhamento com o solo
+            // Relevo e colisão com solo
             const groundY = getTerrain(car.x);
             const groundAheadY = getTerrain(car.x + 15);
             const targetAngle = Math.atan2(groundAheadY - groundY, 15);
@@ -266,101 +310,105 @@
                 car.y = groundY - car.radius;
                 car.vy = 0;
                 car.isGrounded = true;
+
+                // VERIFICAÇÃO DE MORTE (CAPOTAMENTO): Teto do carro bateu no chão
+                let normalAngle = car.angle % (Math.PI * 2);
+                if (Math.abs(normalAngle) > 1.4 && Math.abs(normalAngle) < 4.8 && car.alive) {
+                    car.alive = false;
+                    failReasonEl.innerText = "MOTORISTA CAPOTOU!";
+                    gameOverScreen.style.display = "flex";
+                }
+
                 car.angle = car.angle * 0.6 + targetAngle * 0.4;
             } else {
                 car.isGrounded = false;
             }
 
-            // Ajustar altura dos itens (moedas e combustíveis) de acordo com o relevo
-            activeItems.forEach(item => {
-                item.y = getTerrain(item.x) - (item.type === 'fuel' ? 25 : 20);
+            // Atualização dinâmica dos itens procedurais
+            generateItemsAround(car.x);
 
-                // Sistema de colisão/coleta (Carro pega o item)
-                if (!item.collected && Math.abs(car.x - item.x) < 30 && Math.abs(car.y - item.y) < 30) {
+            activeItems.forEach(item => {
+                if (!item.y_fixed) {
+                    item.y = getTerrain(item.x) - (item.type === 'fuel' ? 25 : 20);
+                    item.y_fixed = true;
+                }
+                if (!item.collected && Math.abs(car.x - item.x) < 32 && Math.abs(car.y - item.y) < 32) {
                     item.collected = true;
                     if (item.type === 'coin') {
-                        car.coins += 500; // Cada moeda dá 500 pontos igual a foto
-                        coinScoreEl.innerText = car.coins;
+                        car.coins += 500; coinScoreEl.innerText = car.coins;
                     } else if (item.type === 'fuel') {
-                        car.fuel = Math.min(100, car.fuel + 45); // Recarrega gás
+                        car.fuel = Math.min(100, car.fuel + 50);
                         fuelGaugeEl.style.background = "#2ecc71";
                     }
                 }
             });
 
-            // --- RENDERIZAR GRÁFICOS ---
-            // Céu Azul Claro
-            ctx.fillStyle = "#74b9ff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Remove itens muito antigos deixados para trás para não travar o PC
+            activeItems = activeItems.filter(item => item.x > car.x - 400);
+
+            // Atualiza fumaça
+            particles.forEach((p, idx) => {
+                p.x += p.vx; p.y += p.vy; p.alpha -= 0.02; p.size += 0.2;
+                if(p.alpha <= 0) particles.splice(idx, 1);
+            });
+
+            // Atualiza HUD de gasolina
+            fuelGaugeEl.style.width = car.fuel + "%";
+            if (car.fuel < 25) fuelGaugeEl.style.background = "#e74c3c";
+
+            // --- RENDER (DESENHOS) ---
+            ctx.fillStyle = "#74b9ff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.save();
-            ctx.translate(-car.x + 200, 0); // Efeito de câmera side-scroller
+            ctx.translate(-car.x + 200, 0);
 
-            // Desenhar Relevo de Terra
-            ctx.beginPath();
-            ctx.fillStyle = "#795548"; 
-            for (let x = car.x - 300; x < car.x + 1200; x += 4) {
+            // Desenhar Terreno de Terra Infinito
+            ctx.beginPath(); ctx.fillStyle = "#795548";
+            for (let x = car.x - 300; x < car.x + 1000; x += 5) {
                 let ty = getTerrain(x);
                 if (x === car.x - 300) ctx.moveTo(x, canvas.height);
                 ctx.lineTo(x, ty);
             }
-            ctx.lineTo(car.x + 1200, canvas.height);
-            ctx.fill();
+            ctx.lineTo(car.x + 1000, canvas.height); ctx.fill();
 
-            // Desenhar Linha de Grama Superior
-            ctx.beginPath();
-            ctx.strokeStyle = "#27ae60"; 
-            ctx.lineWidth = 6;
-            for (let x = car.x - 300; x < car.x + 1200; x += 4) {
+            // Desenhar Linha de Grama
+            ctx.beginPath(); ctx.strokeStyle = "#27ae60"; ctx.lineWidth = 6;
+            for (let x = car.x - 300; x < car.x + 1000; x += 5) {
                 let ty = getTerrain(x);
                 if (x === car.x - 300) ctx.moveTo(x, ty);
                 ctx.lineTo(x, ty);
             }
             ctx.stroke();
 
-            // Desenhar Moedas e Galões de Combustível na Pista
+            // Desenhar itens
             activeItems.forEach(item => {
                 if (!item.collected) {
                     if (item.type === 'coin') {
-                        // Desenha moedas amarelas brilhantes
-                        ctx.fillStyle = "#f1c40f";
-                        ctx.strokeStyle = "#f39c12";
-                        ctx.lineWidth = 2;
-                        ctx.beginPath();
-                        ctx.arc(item.x, item.y, item.size, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.stroke();
-                    } else if (item.type === 'fuel') {
-                        // Desenha galão de gasolina vermelho igual da imagem
-                        ctx.fillStyle = "#e74c3c";
-                        ctx.fillRect(item.x - 10, item.y - 12, 20, 24);
-                        ctx.fillStyle = "#fff"; // Alça/Tampa
-                        ctx.fillRect(item.x - 6, item.y - 16, 12, 4);
-                        ctx.fillStyle = "#111"; // Detalhe "GAS" escrito no galão
-                        ctx.font = "bold 9px Arial";
-                        ctx.fillText("GAS", item.x - 9, item.y + 3);
+                        ctx.fillStyle = "#f1c40f"; ctx.strokeStyle = "#f39c12"; ctx.lineWidth = 2;
+                        ctx.beginPath(); ctx.arc(item.x, item.y, item.size, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                    } else {
+                        ctx.fillStyle = "#e74c3c"; ctx.fillRect(item.x - 10, item.y - 12, 20, 24);
+                        ctx.fillStyle = "#fff"; ctx.fillRect(item.x - 6, item.y - 16, 12, 4);
+                        ctx.fillStyle = "#111"; ctx.font = "bold 9px Arial"; ctx.fillText("GAS", item.x - 9, item.y + 3);
                     }
                 }
             });
 
-            // DESENHAR O CARRO VERMELHO ESTILO HILL CLIMB
+            // Desenhar Partículas de Fumaça
+            particles.forEach(p => {
+                ctx.fillStyle = `rgba(140, 140, 140, ${p.alpha})`;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            });
+
+            // Desenhar Carro
             ctx.save();
-            ctx.translate(car.x, car.y);
-            ctx.rotate(car.angle);
+            ctx.translate(car.x, car.y); ctx.rotate(car.angle);
 
-            // Corpo do jipe/carro vermelho
-            ctx.fillStyle = "#c0392b"; 
-            ctx.fillRect(-car.width / 2, -car.height, car.width, car.height);
-            
-            // Parte de trás arqueada do jipe
-            ctx.fillStyle = "#e74c3c";
-            ctx.fillRect(-car.width / 2, -car.height - 6, 18, 6);
+            ctx.fillStyle = "#c0392b"; ctx.fillRect(-car.width / 2, -car.height, car.width, car.height);
+            ctx.fillStyle = "#e74c3c"; ctx.fillRect(-car.width / 2, -car.height - 6, 18, 6);
+            ctx.fillStyle = "#3498db"; ctx.fillRect(8, -car.height - 12, 14, 12);
 
-            // Vidro dianteiro
-            ctx.fillStyle = "#3498db";
-            ctx.fillRect(8, -car.height - 12, 14, 12);
-
-            // Rodas Grandes Pretas com Aro Prata (Estilo Fingerprint Monster das fotos)
+            // Rodas
             ctx.fillStyle = "#2c3e50";
             ctx.beginPath(); ctx.arc(-car.width / 3, 2, car.radius, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = "#bdc3c7";
