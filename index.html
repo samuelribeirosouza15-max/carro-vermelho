@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Versão Max</title>
+    <title>Hill Climb Racing - Física Corrigida</title>
     <style>
         body {
             margin: 0;
@@ -122,7 +122,7 @@
             <div class="hud-item coin-txt">🪙 MOEDAS: <span id="coin-score">0</span></div>
             <div class="hud-item dist-txt">🏁 DISTÂNCIA: <span id="dist-score">0</span>m</div>
             <div class="hud-item fuel-txt">
-                Bus: 
+                GAS: 
                 <div class="fuel-bar-container">
                     <div id="fuel-gauge" class="fuel-bar"></div>
                 </div>
@@ -158,20 +158,17 @@
         const pedalGas = document.getElementById("pedal-gas");
         const pedalBrake = document.getElementById("pedal-brake");
 
-        // --- CONFIGURAÇÃO DO CARRO ---
         const initialCarState = {
             x: 200, y: 100, vx: 0, vy: 0,
             angle: 0, vAngle: 0,
             width: 54, height: 18, radius: 12,
-            speed: 0.3, jumpForce: -11.5, friction: 0.98, gravity: 0.35,
+            speed: 0.32, jumpForce: -11.0, friction: 0.98, gravity: 0.4,
             isGrounded: false, fuel: 100, coins: 0, distance: 0, alive: true
         };
 
         let car = { ...initialCarState };
         let particles = [];
-        let spawnMarkers = {}; // Controla onde moedas/gás já foram gerados no mapa infinito
-
-        // Estrutura dinâmica para itens coletáveis
+        let spawnMarkers = {};
         let activeItems = [];
 
         const keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false };
@@ -202,12 +199,9 @@
             fuelGaugeEl.style.background = "#2ecc71";
         }
 
-        // --- GERADOR DE TERRENO INFINITO PROCEDURAL ---
         function getTerrain(x) {
-            // Combinação de ondas seno para gerar subidas/descidas infinitas e variadas
-            let base = canvas.height - 110 + Math.sin(x * 0.005) * 60 + Math.sin(x * 0.0015) * 40;
+            let base = canvas.height - 130 + Math.sin(x * 0.005) * 65 + Math.sin(x * 0.0015) * 45;
             
-            // Adiciona rampas surpresas geradas matematicamente a cada 1200 pixels
             let rampaSet = Math.floor(x / 1200);
             let rampaLocalX = x % 1200;
             if (rampaSet > 0 && rampaLocalX > 800 && rampaLocalX < 1000) {
@@ -216,18 +210,13 @@
             return base;
         }
 
-        // --- GERADOR DE ITENS PROCEDURAL (Moedas e Combustível Infinitos) ---
         function generateItemsAround(carX) {
-            // Define o bloco atual do mapa (de 400 em 400 pixels)
             let block = Math.floor(carX / 400);
-            
-            // Se este bloco ainda não gerou itens, cria novos à frente do jogador
             for (let i = block - 1; i <= block + 3; i++) {
                 if (!spawnMarkers[i] && i > 0) {
                     spawnMarkers[i] = true;
                     let spawnX = i * 400 + Math.random() * 100;
                     
-                    // A cada 3 blocos gera um Galão de Gás, nos outros gera fileiras de moedas
                     if (i % 3 === 0) {
                         activeItems.push({ type: 'fuel', x: spawnX, y: 0, size: 14, collected: false });
                     } else {
@@ -239,7 +228,6 @@
             }
         }
 
-        // --- SISTEMA DE PARTÍCULAS (FUMAÇA) ---
         function createSmoke(x, y) {
             if (Math.random() < 0.4) {
                 particles.push({
@@ -254,11 +242,9 @@
 
         function update() {
             if (car.alive) {
-                // Consumo do combustível
                 let fuelBurn = 0.07;
                 if (keys.ArrowRight) {
                     fuelBurn = 0.16;
-                    // Cria fumaça saindo da traseira do carro ao acelerar
                     let backX = car.x - Math.cos(car.angle) * 25;
                     let backY = car.y - Math.sin(car.angle) * 10;
                     createSmoke(backX, backY);
@@ -271,22 +257,19 @@
                     gameOverScreen.style.display = "flex";
                 }
 
-                // Movimento básico
                 if (car.isGrounded) {
                     if (keys.ArrowRight) car.vx += car.speed;
                     if (keys.ArrowLeft) car.vx -= car.speed * 0.6;
                     if (keys.ArrowUp) {
                         car.vy = car.jumpForce;
                         car.isGrounded = false;
-                        for(let k=0; k<5; k++) createSmoke(car.x, car.y); // Fumaça de impulso
+                        for(let k=0; k<5; k++) createSmoke(car.x, car.y);
                     }
-                    car.vAngle *= 0.4;
                 } else {
-                    if (keys.ArrowRight) car.vAngle += 0.009;
-                    if (keys.ArrowLeft) car.vAngle -= 0.009;
+                    if (keys.ArrowRight) car.vAngle += 0.01;
+                    if (keys.ArrowLeft) car.vAngle -= 0.01;
                 }
 
-                // Calcula distância em metros percorrida
                 let currentDist = Math.floor(car.x / 10) - 20;
                 if (currentDist > car.distance) {
                     car.distance = currentDist;
@@ -294,37 +277,52 @@
                 }
             }
 
-            // Física do Carro
-            car.vx *= car.friction; car.vy += car.gravity;
-            car.angle += car.vAngle; car.vAngle *= 0.95;
-            car.x += car.vx; car.y += car.vy;
+            // Aplicar física básica antes da colisão
+            car.vx *= car.friction;
+            car.vy += car.gravity;
+            car.angle += car.vAngle;
+            car.vAngle *= 0.95;
+            car.x += car.vx;
+            car.y += car.vy;
 
             if (car.y < -150) { car.y = -150; car.vy = 0; }
 
-            // Relevo e colisão com solo
+            // --- NOVO SISTEMA ANTIGARGALO (CORREÇÃO DO BUG) ---
             const groundY = getTerrain(car.x);
-            const groundAheadY = getTerrain(car.x + 15);
-            const targetAngle = Math.atan2(groundAheadY - groundY, 15);
+            // Analisa pontos extras na frente e atrás para suavizar descidas acentuadas
+            const groundAheadY = getTerrain(car.x + 18);
+            const groundBackY = getTerrain(car.x - 18);
+            
+            // Ângulo alvo baseado na média real do relevo abaixo do carro
+            const targetAngle = Math.atan2(groundAheadY - groundBackY, 36);
 
             if (car.y + car.radius >= groundY) {
+                // Impede o carro de afundar no chão de forma abrupta nas descidas
                 car.y = groundY - car.radius;
-                car.vy = 0;
+                
+                // Se o carro estava caindo em alta velocidade, absorve o impacto (efeito mola/amortecedor)
+                if (car.vy > 0) {
+                    car.vy = car.vx * Math.sin(targetAngle); // Redireciona a força para a direção da descida
+                }
+                
                 car.isGrounded = true;
 
-                // VERIFICAÇÃO DE MORTE (CAPOTAMENTO): Teto do carro bateu no chão
+                // Suavização do ângulo para colar nas descidas sem trepidar
+                car.angle = car.angle * 0.5 + targetAngle * 0.5;
+                car.vAngle *= 0.5; // Reduz balanço extra
+
+                // Verificação de capotamento ajustada para evitar falsos positivos
                 let normalAngle = car.angle % (Math.PI * 2);
-                if (Math.abs(normalAngle) > 1.4 && Math.abs(normalAngle) < 4.8 && car.alive) {
+                if (Math.abs(normalAngle) > 1.5 && Math.abs(normalAngle) < 4.7 && car.alive) {
                     car.alive = false;
                     failReasonEl.innerText = "MOTORISTA CAPOTOU!";
                     gameOverScreen.style.display = "flex";
                 }
-
-                car.angle = car.angle * 0.6 + targetAngle * 0.4;
             } else {
                 car.isGrounded = false;
             }
 
-            // Atualização dinâmica dos itens procedurais
+            // Geração de itens
             generateItemsAround(car.x);
 
             activeItems.forEach(item => {
@@ -343,44 +341,42 @@
                 }
             });
 
-            // Remove itens muito antigos deixados para trás para não travar o PC
             activeItems = activeItems.filter(item => item.x > car.x - 400);
 
-            // Atualiza fumaça
+            // Partículas
             particles.forEach((p, idx) => {
                 p.x += p.vx; p.y += p.vy; p.alpha -= 0.02; p.size += 0.2;
                 if(p.alpha <= 0) particles.splice(idx, 1);
             });
 
-            // Atualiza HUD de gasolina
             fuelGaugeEl.style.width = car.fuel + "%";
             if (car.fuel < 25) fuelGaugeEl.style.background = "#e74c3c";
 
-            // --- RENDER (DESENHOS) ---
+            // --- DESENHOS ---
             ctx.fillStyle = "#74b9ff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.save();
             ctx.translate(-car.x + 200, 0);
 
-            // Desenhar Terreno de Terra Infinito
+            // Desenhar Terreno
             ctx.beginPath(); ctx.fillStyle = "#795548";
-            for (let x = car.x - 300; x < car.x + 1000; x += 5) {
+            for (let x = car.x - 300; x < car.x + 1000; x += 4) {
                 let ty = getTerrain(x);
                 if (x === car.x - 300) ctx.moveTo(x, canvas.height);
                 ctx.lineTo(x, ty);
             }
             ctx.lineTo(car.x + 1000, canvas.height); ctx.fill();
 
-            // Desenhar Linha de Grama
+            // Grama
             ctx.beginPath(); ctx.strokeStyle = "#27ae60"; ctx.lineWidth = 6;
-            for (let x = car.x - 300; x < car.x + 1000; x += 5) {
+            for (let x = car.x - 300; x < car.x + 1000; x += 4) {
                 let ty = getTerrain(x);
                 if (x === car.x - 300) ctx.moveTo(x, ty);
                 ctx.lineTo(x, ty);
             }
             ctx.stroke();
 
-            // Desenhar itens
+            // Itens
             activeItems.forEach(item => {
                 if (!item.collected) {
                     if (item.type === 'coin') {
@@ -394,13 +390,13 @@
                 }
             });
 
-            // Desenhar Partículas de Fumaça
+            // Fumaça
             particles.forEach(p => {
                 ctx.fillStyle = `rgba(140, 140, 140, ${p.alpha})`;
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
             });
 
-            // Desenhar Carro
+            // Carro
             ctx.save();
             ctx.translate(car.x, car.y); ctx.rotate(car.angle);
 
