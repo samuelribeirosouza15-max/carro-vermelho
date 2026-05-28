@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Física Corrigida</title>
+    <title>Hill Climb Racing - Mais Obstáculos</title>
     <style>
         body {
             margin: 0;
@@ -170,6 +170,7 @@
         let particles = [];
         let spawnMarkers = {};
         let activeItems = [];
+        let obstacles = []; // Nova lista separada para gerenciar os obstáculos físicos
 
         const keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false };
 
@@ -190,6 +191,7 @@
         function resetGame() {
             car = { ...initialCarState };
             activeItems = [];
+            obstacles = [];
             particles = [];
             spawnMarkers = {};
             gameOverScreen.style.display = "none";
@@ -210,19 +212,36 @@
             return base;
         }
 
-        function generateItemsAround(carX) {
+        // --- GERADOR INFINITO DE ITENS E OBSTÁCULOS VARIADOS ---
+        function generateWorldElements(carX) {
             let block = Math.floor(carX / 400);
+            
             for (let i = block - 1; i <= block + 3; i++) {
                 if (!spawnMarkers[i] && i > 0) {
                     spawnMarkers[i] = true;
                     let spawnX = i * 400 + Math.random() * 100;
                     
+                    // 1. Geração de Moedas e Gasolina
                     if (i % 3 === 0) {
                         activeItems.push({ type: 'fuel', x: spawnX, y: 0, size: 14, collected: false });
                     } else {
                         activeItems.push({ type: 'coin', x: spawnX, y: 0, size: 8, collected: false });
                         activeItems.push({ type: 'coin', x: spawnX + 40, y: 0, size: 8, collected: false });
-                        activeItems.push({ type: 'coin', x: spawnX + 80, y: 0, size: 8, collected: false });
+                    }
+
+                    // 2. Geração Randômica de Obstáculos Variados (Caixas, Pedras ou Troncos)
+                    if (i > 1 && Math.random() < 0.6) {
+                        let rand = Math.random();
+                        if (rand < 0.35) {
+                            // Caixa de madeira (Leve, empurrável)
+                            obstacles.push({ type: 'box', x: spawnX + 150, y: 0, size: 26, vx: 0, vy: 0, rot: 0 });
+                        } else if (rand < 0.70) {
+                            // Tronco Redondo (Rola morro abaixo)
+                            obstacles.push({ type: 'log', x: spawnX + 180, y: 0, radius: 14, vx: 0, vy: 0, angle: 0 });
+                        } else {
+                            // Pedra Pesada (Fixa no chão)
+                            obstacles.push({ type: 'rock', x: spawnX + 200, y: 0, size: 30 });
+                        }
                     }
                 }
             }
@@ -277,41 +296,26 @@
                 }
             }
 
-            // Aplicar física básica antes da colisão
-            car.vx *= car.friction;
-            car.vy += car.gravity;
-            car.angle += car.vAngle;
-            car.vAngle *= 0.95;
-            car.x += car.vx;
-            car.y += car.vy;
+            // Física básica do carro
+            car.vx *= car.friction; car.vy += car.gravity;
+            car.angle += car.vAngle; car.vAngle *= 0.95;
+            car.x += car.vx; car.y += car.vy;
 
             if (car.y < -150) { car.y = -150; car.vy = 0; }
 
-            // --- NOVO SISTEMA ANTIGARGALO (CORREÇÃO DO BUG) ---
+            // Colisão do carro com o solo corrigida (sem travar)
             const groundY = getTerrain(car.x);
-            // Analisa pontos extras na frente e atrás para suavizar descidas acentuadas
             const groundAheadY = getTerrain(car.x + 18);
             const groundBackY = getTerrain(car.x - 18);
-            
-            // Ângulo alvo baseado na média real do relevo abaixo do carro
             const targetAngle = Math.atan2(groundAheadY - groundBackY, 36);
 
             if (car.y + car.radius >= groundY) {
-                // Impede o carro de afundar no chão de forma abrupta nas descidas
                 car.y = groundY - car.radius;
-                
-                // Se o carro estava caindo em alta velocidade, absorve o impacto (efeito mola/amortecedor)
-                if (car.vy > 0) {
-                    car.vy = car.vx * Math.sin(targetAngle); // Redireciona a força para a direção da descida
-                }
-                
+                if (car.vy > 0) car.vy = car.vx * Math.sin(targetAngle);
                 car.isGrounded = true;
-
-                // Suavização do ângulo para colar nas descidas sem trepidar
                 car.angle = car.angle * 0.5 + targetAngle * 0.5;
-                car.vAngle *= 0.5; // Reduz balanço extra
+                car.vAngle *= 0.5;
 
-                // Verificação de capotamento ajustada para evitar falsos positivos
                 let normalAngle = car.angle % (Math.PI * 2);
                 if (Math.abs(normalAngle) > 1.5 && Math.abs(normalAngle) < 4.7 && car.alive) {
                     car.alive = false;
@@ -322,9 +326,65 @@
                 car.isGrounded = false;
             }
 
-            // Geração de itens
-            generateItemsAround(car.x);
+            // Ativa o gerador automático baseado no X do carro
+            generateWorldElements(car.x);
 
+            // --- PROCESSAMENTO DA FÍSICA DOS NOVOS OBSTÁCULOS ---
+            obstacles.forEach(obs => {
+                const obsGroundY = getTerrain(obs.x);
+
+                if (obs.type === 'box' || obs.type === 'log') {
+                    // Gravidade e atrito para itens móveis
+                    obs.vy += car.gravity;
+                    obs.vx *= 0.96;
+                    obs.x += obs.vx;
+                    obs.y += obs.vy;
+
+                    let currentRadius = obs.type === 'log' ? obs.radius : obs.size / 2;
+                    if (obs.y + currentRadius >= obsGroundY) {
+                        obs.y = obsGroundY - currentRadius;
+                        obs.vy = 0;
+
+                        // Se for o tronco, ele ganha velocidade de rolamento conforme a inclinação do chão!
+                        if (obs.type === 'log') {
+                            const gAhead = getTerrain(obs.x + 5);
+                            const gBack = getTerrain(obs.x - 5);
+                            const slope = (gAhead - gBack) / 10;
+                            obs.vx += slope * 0.15; // Rola ladeira abaixo automaticamente
+                            obs.angle += obs.vx * 0.05; // Gira o sprite do desenho
+                        }
+                    }
+                } else if (obs.type === 'rock') {
+                    // Pedra fica colada fixa no terreno
+                    obs.y = obsGroundY - obs.size / 2;
+                }
+
+                // COLISÃO: Carro batendo no obstáculo
+                let dist = Math.abs(car.x - obs.x);
+                let checkSize = obs.type === 'log' ? obs.radius * 2 : obs.size;
+
+                if (dist < car.width / 2 + checkSize / 2 && Math.abs(car.y - obs.y) < checkSize + 10) {
+                    if (obs.type === 'box') {
+                        obs.vx = car.vx * 1.3;
+                        obs.vy = car.vy - 1.5;
+                        car.vx *= 0.8; // Perde um pouco de velocidade
+                    } else if (obs.type === 'log') {
+                        obs.vx = car.vx * 1.5;
+                        obs.vy = -2;
+                        car.vx *= 0.75;
+                    } else if (obs.type === 'rock') {
+                        // Pedra bloqueia o carro abruptamente se bater reto
+                        car.vx *= -0.3; // Bate e rebate levemente para trás
+                        car.vAngle += 0.05; // Faz o carro empinar no impacto!
+                    }
+                }
+            });
+
+            // Limpeza de arrays para performance
+            activeItems = activeItems.filter(item => item.x > car.x - 400);
+            obstacles = obstacles.filter(obs => obs.x > car.x - 400);
+
+            // Atualização das moedas/gás
             activeItems.forEach(item => {
                 if (!item.y_fixed) {
                     item.y = getTerrain(item.x) - (item.type === 'fuel' ? 25 : 20);
@@ -341,9 +401,7 @@
                 }
             });
 
-            activeItems = activeItems.filter(item => item.x > car.x - 400);
-
-            // Partículas
+            // Fumaça
             particles.forEach((p, idx) => {
                 p.x += p.vx; p.y += p.vy; p.alpha -= 0.02; p.size += 0.2;
                 if(p.alpha <= 0) particles.splice(idx, 1);
@@ -358,7 +416,7 @@
             ctx.save();
             ctx.translate(-car.x + 200, 0);
 
-            // Desenhar Terreno
+            // Chão de terra
             ctx.beginPath(); ctx.fillStyle = "#795548";
             for (let x = car.x - 300; x < car.x + 1000; x += 4) {
                 let ty = getTerrain(x);
@@ -376,7 +434,7 @@
             }
             ctx.stroke();
 
-            // Itens
+            // Renderizar itens coletáveis
             activeItems.forEach(item => {
                 if (!item.collected) {
                     if (item.type === 'coin') {
@@ -388,6 +446,40 @@
                         ctx.fillStyle = "#111"; ctx.font = "bold 9px Arial"; ctx.fillText("GAS", item.x - 9, item.y + 3);
                     }
                 }
+            });
+
+            // RENDERIZAR OS NOVOS OBSTÁCULOS
+            obstacles.forEach(obs => {
+                ctx.save();
+                ctx.translate(obs.x, obs.y);
+
+                if (obs.type === 'box') {
+                    // Caixa de madeira antiga
+                    ctx.fillStyle = "#e67e22"; ctx.fillRect(-obs.size/2, -obs.size/2, obs.size, obs.size);
+                    ctx.strokeStyle = "#d35400"; ctx.lineWidth = 2; ctx.strokeRect(-obs.size/2, -obs.size/2, obs.size, obs.size);
+                } 
+                else if (obs.type === 'log') {
+                    // Tronco Redondo com linhas internas indicando rotação
+                    ctx.rotate(obs.angle);
+                    ctx.fillStyle = "#A0522D"; // Marrom madeira
+                    ctx.beginPath(); ctx.arc(0, 0, obs.radius, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = "#5C4033"; ctx.lineWidth = 3; ctx.stroke();
+                    // Veios da madeira (detalhe)
+                    ctx.beginPath(); ctx.moveTo(-obs.radius+4, 0); ctx.lineTo(obs.radius-4, 0); ctx.stroke();
+                } 
+                else if (obs.type === 'rock') {
+                    // Pedra cinza poligonal áspera
+                    ctx.fillStyle = "#7f8c8d";
+                    ctx.beginPath();
+                    ctx.moveTo(-obs.size/2, obs.size/2);
+                    ctx.lineTo(-obs.size/2 + 5, -obs.size/2 + 5);
+                    ctx.lineTo(obs.size/2 - 2, -obs.size/2);
+                    ctx.lineTo(obs.size/2, obs.size/2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = "#34495e"; ctx.lineWidth = 2; ctx.stroke();
+                }
+                ctx.restore();
             });
 
             // Fumaça
