@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Garagem & Upgrades</title>
+    <title>Hill Climb Racing - Pista Limpa</title>
     <style>
         body {
             margin: 0;
@@ -112,7 +112,7 @@
         }
         .btn-start:active { transform: translateY(6px); box-shadow: none; }
 
-        /* HUD DO JOGO */
+        /* HUD DO JOGO IN-GAME */
         .hud {
             position: absolute;
             top: 20px;
@@ -168,7 +168,7 @@
 
             <div class="upgrades-container">
                 <div class="upgrade-card">
-                    <div class="upgrade-name">MOTOR (GAS)</div>
+                    <div class="upgrade-name">MOTOR</div>
                     <div class="upgrade-level">Nível <span id="lvl-motor">1</span>/5</div>
                     <div class="level-bars" id="bars-motor"></div>
                     <button class="btn-upgrade" id="btn-upgrade-motor" onclick="buyUpgrade('motor')">4.000</button>
@@ -205,12 +205,12 @@
 
         <div id="game-over-screen">
             <h1 id="fail-reason">GAME OVER</h1>
-            <p>Moedas coletadas nesta rodada!</p>
+            <p>Moedas salvas na sua conta!</p>
             <button class="btn-menu" onclick="backToGarage()">VOLTAR P/ GARAGEM</button>
         </div>
         
         <div class="instructions">
-            Controles: <span class="key">➡️</span> ACELERAR | <span class="key">⬅️</span> FREIO/RÉ | <span class="key">⬆️</span> PULAR
+            Controles: <span class="key">➡️</span> GAS (Acelerar / Inclinar frente no ar) | <span class="key">⬅️</span> BRAKE (Freio / Inclinar trás no ar)
         </div>
     </div>
 
@@ -218,7 +218,6 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // Elementos DOM
         const coinScoreEl = document.getElementById("coin-score");
         const distScoreEl = document.getElementById("dist-score");
         const fuelGaugeEl = document.getElementById("fuel-gauge");
@@ -228,17 +227,16 @@
         const garageCoinsTxt = document.getElementById("garage-coins-txt");
 
         // --- SISTEMA ECONÔMICO E UPGRADES ---
-        let totalCoins = 15000; // Começa com bônus para você testar os upgrades!
+        let totalCoins = 15000; 
         let upgrades = { motor: 1, sus: 1, pneu: 1 };
         let costs = { motor: 4000, sus: 3000, pneu: 2500 };
 
         let inGame = false;
 
-        // Estado do Carro Variável pelos Upgrades
         const initialCarState = {
             x: 200, y: 100, vx: 0, vy: 0, angle: 0, vAngle: 0,
             width: 54, height: 18, radius: 12,
-            speed: 0.25, jumpForce: -11.0, friction: 0.98, gravity: 0.4,
+            speed: 0.25, friction: 0.98, gravity: 0.4,
             isGrounded: false, fuel: 100, coins: 0, distance: 0, alive: true
         };
         let car = { ...initialCarState };
@@ -246,17 +244,25 @@
         let particles = [];
         let spawnMarkers = {};
         let activeItems = [];
-        let obstacles = [];
 
-        const keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false };
+        const keys = { ArrowRight: false, ArrowLeft: false };
 
-        // Atualiza os blocos visuais de nível na garagem
+        window.addEventListener("keydown", (e) => {
+            if (!car.alive || !inGame) return;
+            if (e.key === "ArrowRight") keys.ArrowRight = true;
+            if (e.key === "ArrowLeft") keys.ArrowLeft = true;
+        });
+        window.addEventListener("keyup", (e) => {
+            if (e.key === "ArrowRight") keys.ArrowRight = false;
+            if (e.key === "ArrowLeft") keys.ArrowLeft = false;
+        });
+
         function updateGarageUI() {
             garageCoinsTxt.innerText = totalCoins.toLocaleString('pt-BR');
             
             ['motor', 'sus', 'pneu'].forEach(type => {
-                document.getElementById(`lvl-${type === 'sus' ? 'sus' : type === 'pneu' ? 'pneu' : 'motor'}`).innerText = upgrades[type];
-                let container = document.getElementById(`bars-${type === 'sus' ? 'sus' : type === 'pneu' ? 'pneu' : 'motor'}`);
+                document.getElementById(`lvl-${type}`).innerText = upgrades[type];
+                let container = document.getElementById(`bars-${type}`);
                 container.innerHTML = '';
                 for(let i = 1; i <= 5; i++) {
                     let bar = document.createElement('div');
@@ -264,7 +270,7 @@
                     container.appendChild(bar);
                 }
 
-                let btn = document.getElementById(`btn-upgrade-${type === 'sus' ? 'sus' : type === 'pneu' ? 'pneu' : 'motor'}`);
+                let btn = document.getElementById(`btn-upgrade-${type}`);
                 if (upgrades[type] >= 5) {
                     btn.innerText = "MAX";
                     btn.disabled = true;
@@ -279,7 +285,7 @@
             if (totalCoins >= costs[type] && upgrades[type] < 5) {
                 totalCoins -= costs[type];
                 upgrades[type]++;
-                costs[type] = Math.floor(costs[type] * 1.5); // Aumenta o preço do próximo nível
+                costs[type] = Math.floor(costs[type] * 1.5);
                 updateGarageUI();
             }
         }
@@ -288,14 +294,11 @@
             garageScreen.style.display = "none";
             gameOverScreen.style.display = "none";
             
-            // Aplica os multiplicadores de upgrade baseados no nível adquirido
             car = { ...initialCarState };
-            car.speed += (upgrades.motor - 1) * 0.05;      // Mais velocidade
-            car.friction += (upgrades.pneu - 1) * 0.003;   // Mais aderência/menos derrapagem
-            // Suspensão melhorada absorve mais o ângulo de impacto
+            car.speed += (upgrades.motor - 1) * 0.05;      
+            car.friction += (upgrades.pneu - 1) * 0.003;   
             
             activeItems = [];
-            obstacles = [];
             particles = [];
             spawnMarkers = {};
             coinScoreEl.innerText = "0";
@@ -307,25 +310,12 @@
         }
 
         function backToGarage() {
-            totalCoins += car.coins; // Consolida moedas coletadas na corrida
+            totalCoins += car.coins; 
             gameOverScreen.style.display = "none";
             garageScreen.style.display = "flex";
             inGame = false;
             updateGarageUI();
         }
-
-        // Eventos Teclado
-        window.addEventListener("keydown", (e) => {
-            if (!car.alive || !inGame) return;
-            if (e.key === "ArrowRight") keys.ArrowRight = true;
-            if (e.key === "ArrowLeft") keys.ArrowLeft = true;
-            if (e.key === "ArrowUp" || e.key.toLowerCase() === 'w') keys.ArrowUp = true;
-        });
-        window.addEventListener("keyup", (e) => {
-            if (e.key === "ArrowRight") keys.ArrowRight = false;
-            if (e.key === "ArrowLeft") keys.ArrowLeft = false;
-            if (e.key === "ArrowUp" || e.key.toLowerCase() === 'w') keys.ArrowUp = false;
-        });
 
         function getTerrain(x) {
             return canvas.height - 140 + Math.sin(x * 0.005) * 65 + Math.sin(x * 0.0015) * 45;
@@ -343,53 +333,33 @@
                         activeItems.push({ type: 'coin', x: spawnX, y: 0, size: 8, collected: false });
                         activeItems.push({ type: 'coin', x: spawnX + 40, y: 0, size: 8, collected: false });
                     }
-                    if (i > 1 && Math.random() < 0.5) {
-                        let rand = Math.random();
-                        if (rand < 0.5) {
-                            obstacles.push({ type: 'log', x: spawnX + 160, y: 0, radius: 13, vx: 0, vy: 0, angle: 0 });
-                        } else {
-                            obstacles.push({ type: 'rock', x: spawnX + 190, y: 0, size: 28 });
-                        }
-                    }
                 }
             }
         }
 
         function drawGauge(x, y, radius, value, minVal, maxVal, label, unit, color) {
-            // Fundo do relógio
             ctx.fillStyle = "rgba(44, 62, 80, 0.85)";
             ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.stroke();
 
-            // Linhas indicadoras internas
             ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 2;
             for(let a = 0.75 * Math.PI; a <= 2.25 * Math.PI; a += 0.15 * Math.PI) {
-                ctx.beginPath();
-                ctx.arc(x, y, radius - 4, a, a + 0.02);
-                ctx.stroke();
+                ctx.beginPath(); ctx.arc(x, y, radius - 4, a, a + 0.02); ctx.stroke();
             }
 
-            // Mapeia valor atual para o ângulo do ponteiro
             let percent = (value - minVal) / (maxVal - minVal);
-            percent = Math.max(0, Math.min(1, percent)); // Trava entre 0 e 1
+            percent = Math.max(0, Math.min(1, percent)); 
             let targetAngle = 0.75 * Math.PI + percent * (1.5 * Math.PI);
 
-            // Desenha ponteiro vermelho analógico
             ctx.strokeStyle = color; ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(x, y);
+            ctx.beginPath(); ctx.moveTo(x, y);
             ctx.lineTo(x + Math.cos(targetAngle) * (radius - 12), y + Math.sin(targetAngle) * (radius - 12));
             ctx.stroke();
 
-            // Centro do ponteiro
-            ctx.fillStyle = "#fff";
-            ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
-
-            // Textos internos
+            ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = "#fff"; ctx.font = "bold 10px Arial"; ctx.textAlign = "center";
             ctx.fillText(label, x, y + radius - 14);
-            ctx.fillStyle = "#fffa65"; ctx.font = "11px Arial";
-            ctx.fillText(Math.floor(value) + unit, x, y - 8);
+            ctx.fillStyle = "#fffa65"; ctx.font = "11px Arial"; ctx.fillText(Math.floor(value) + unit, x, y - 8);
         }
 
         function update() {
@@ -415,14 +385,13 @@
                 if (car.isGrounded) {
                     if (keys.ArrowRight) car.vx += car.speed;
                     if (keys.ArrowLeft) car.vx -= car.speed * 0.5;
-                    if (keys.ArrowUp) { car.vy = car.jumpForce; car.isGrounded = false; }
                 } else {
+                    // No ar, os botões servem para equilibrar e controlar a inclinação do veículo
                     if (keys.ArrowRight) car.vAngle += 0.01;
                     if (keys.ArrowLeft) car.vAngle -= 0.01;
                 }
             }
 
-            // Aplicar física
             car.vx *= car.friction; car.vy += car.gravity;
             car.angle += car.vAngle; car.vAngle *= 0.95;
             car.x += car.vx; car.y += car.vy;
@@ -437,7 +406,6 @@
                 if (car.vy > 0) car.vy = car.vx * Math.sin(targetAngle);
                 car.isGrounded = true;
 
-                // Influência do Upgrade da suspensão (Estabiliza mais rápido nos níveis altos)
                 let susFactor = 0.3 + (upgrades.sus * 0.06); 
                 car.angle = car.angle * (1 - susFactor) + targetAngle * susFactor;
                 car.vAngle *= 0.5;
@@ -452,30 +420,11 @@
                 car.isGrounded = false;
             }
 
-            // Medidor metros
             let currentDist = Math.floor(car.x / 10) - 20;
             if (currentDist > car.distance) { car.distance = currentDist; distScoreEl.innerText = car.distance; }
 
             generateWorldElements(car.x);
 
-            // Obstáculos
-            obstacles.forEach(obs => {
-                if (obs.type === 'log') {
-                    obs.vy += car.gravity; obs.vx *= 0.96; obs.x += obs.vx; obs.y += obs.vy;
-                    let gY = getTerrain(obs.x);
-                    if (obs.y + obs.radius >= gY) { obs.y = gY - obs.radius; obs.vy = 0; obs.vx += (getTerrain(obs.x+5)-getTerrain(obs.x-5))*0.15; obs.angle += obs.vx*0.05; }
-                } else {
-                    obs.y = getTerrain(obs.x) - obs.size/2;
-                }
-                let dist = Math.abs(car.x - obs.x);
-                let size = obs.type === 'log' ? obs.radius*2 : obs.size;
-                if (dist < car.width/2 + size/2 && Math.abs(car.y - obs.y) < size + 10) {
-                    if (obs.type === 'log') { obs.vx = car.vx*1.3; car.vx *= 0.75; }
-                    else { car.vx *= -0.2; car.vAngle += 0.04; }
-                }
-            });
-
-            // Coleta itens
             activeItems.forEach(item => {
                 if (!item.y_fixed) { item.y = getTerrain(item.x) - (item.type==='fuel'?25:20); item.y_fixed = true; }
                 if (!item.collected && Math.abs(car.x - item.x) < 30 && Math.abs(car.y - item.y) < 30) {
@@ -485,21 +434,19 @@
                 }
             });
 
-            // Limpezas e Fumaça
             activeItems = activeItems.filter(item => item.x > car.x - 400);
-            obstacles = obstacles.filter(obs => obs.x > car.x - 400);
             particles.forEach((p, idx) => { p.x += p.vx; p.y += p.vy; p.alpha -= 0.02; if(p.alpha<=0) particles.splice(idx,1); });
 
             fuelGaugeEl.style.width = car.fuel + "%";
             if (car.fuel < 25) fuelGaugeEl.style.background = "#e74c3c";
 
-            // --- DESENHAR TELAS ---
+            // --- DESENHAR ---
             ctx.fillStyle = "#74b9ff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.save();
             ctx.translate(-car.x + 200, 0);
 
-            // Terra e grama
+            // Chão e Grama
             ctx.beginPath(); ctx.fillStyle = "#795548";
             for (let x = car.x - 300; x < car.x + 1000; x += 5) { let ty = getTerrain(x); if (x === car.x - 300) ctx.moveTo(x, canvas.height); ctx.lineTo(x, ty); }
             ctx.lineTo(car.x + 1000, canvas.height); ctx.fill();
@@ -508,21 +455,15 @@
             for (let x = car.x - 300; x < car.x + 1000; x += 5) { let ty = getTerrain(x); if (x === car.x - 300) ctx.moveTo(x, ty); ctx.lineTo(x, ty); }
             ctx.stroke();
 
-            // Desenhar itens coletáveis e obstáculos
+            // Itens
             activeItems.forEach(item => {
                 if (!item.collected) {
                     if (item.type === 'coin') { ctx.fillStyle = "#f1c40f"; ctx.beginPath(); ctx.arc(item.x, item.y, item.size, 0, Math.PI*2); ctx.fill(); }
                     else { ctx.fillStyle = "#e74c3c"; ctx.fillRect(item.x-10, item.y-12, 20, 24); }
                 }
             });
-            obstacles.forEach(obs => {
-                ctx.save(); ctx.translate(obs.x, obs.y);
-                if(obs.type === 'log') { ctx.rotate(obs.angle); ctx.fillStyle = "#A0522D"; ctx.beginPath(); ctx.arc(0,0,obs.radius,0,Math.PI*2); ctx.fill(); }
-                else { ctx.fillStyle = "#7f8c8d"; ctx.fillRect(-obs.size/2, -obs.size/2, obs.size, obs.size); }
-                ctx.restore();
-            });
 
-            // Fumaça particles
+            // Fumaça
             particles.forEach(p => { ctx.fillStyle = `rgba(140,140,140,${p.alpha})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); });
 
             // Carro
@@ -535,10 +476,10 @@
             ctx.restore();
             ctx.restore();
 
-            // --- DESENHAR RELÓGIOS ANALÓGICOS (VELOCÍMETRO / RPM) FIXOS NA TELA ---
-            let speedKmh = Math.abs(car.vx) * 160; // Conversão simulada baseada na física do vetor X
+            // Relógios analógicos
+            let speedKmh = Math.abs(car.vx) * 160; 
             let mockRPM = keys.ArrowRight ? 3000 + (speedKmh * 35) : 900 + (speedKmh * 15);
-            if (!car.isGrounded && keys.ArrowRight) mockRPM = 7500 + Math.random() * 500; // Cortando giro no ar!
+            if (!car.isGrounded && keys.ArrowRight) mockRPM = 7500 + Math.random() * 500; 
 
             drawGauge(360, canvas.height - 55, 42, speedKmh, 0, 180, "SPEED", " km/h", "#e67e22");
             drawGauge(540, canvas.height - 55, 42, mockRPM, 0, 8000, "RPM", "", "#e74c3c");
@@ -546,7 +487,6 @@
             requestAnimationFrame(update);
         }
 
-        // Executa carregamento inicial do sistema de upgrades
         updateGarageUI();
         update();
     </script>
