@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Pista Limpa</title>
+    <title>Hill Climb Racing - Economia Balanceada</title>
     <style>
         body {
             margin: 0;
@@ -171,19 +171,19 @@
                     <div class="upgrade-name">MOTOR</div>
                     <div class="upgrade-level">Nível <span id="lvl-motor">1</span>/5</div>
                     <div class="level-bars" id="bars-motor"></div>
-                    <button class="btn-upgrade" id="btn-upgrade-motor" onclick="buyUpgrade('motor')">4.000</button>
+                    <button class="btn-upgrade" id="btn-upgrade-motor" onclick="buyUpgrade('motor')">1.200</button>
                 </div>
                 <div class="upgrade-card">
                     <div class="upgrade-name">SUSPENSÃO</div>
                     <div class="upgrade-level">Nível <span id="lvl-sus">1</span>/5</div>
                     <div class="level-bars" id="bars-sus"></div>
-                    <button class="btn-upgrade" id="btn-upgrade-sus" onclick="buyUpgrade('sus')">3.000</button>
+                    <button class="btn-upgrade" id="btn-upgrade-sus" onclick="buyUpgrade('sus')">1.000</button>
                 </div>
                 <div class="upgrade-card">
                     <div class="upgrade-name">PNEUS</div>
                     <div class="upgrade-level">Nível <span id="lvl-pneu">1</span>/5</div>
                     <div class="level-bars" id="bars-pneu"></div>
-                    <button class="btn-upgrade" id="btn-upgrade-pneu" onclick="buyUpgrade('pneu')">2.500</button>
+                    <button class="btn-upgrade" id="btn-upgrade-pneu" onclick="buyUpgrade('pneu')">800</button>
                 </div>
             </div>
 
@@ -210,7 +210,7 @@
         </div>
         
         <div class="instructions">
-            Controles: <span class="key">➡️</span> GAS (Acelerar / Inclinar frente no ar) | <span class="key">⬅️</span> BRAKE (Freio / Inclinar trás no ar)
+            Controles: <span class="key">➡️</span> GAS (Acelerar) | <span class="key">⬅️</span> BRAKE (Frear / Ré)
         </div>
     </div>
 
@@ -226,17 +226,17 @@
         const garageScreen = document.getElementById("garage-screen");
         const garageCoinsTxt = document.getElementById("garage-coins-txt");
 
-        // --- SISTEMA ECONÔMICO E UPGRADES ---
-        let totalCoins = 15000; 
+        // --- SISTEMA ECONÔMICO CORRIGIDO (JUSTO) ---
+        let totalCoins = 0; // Começa do zero para valorizar a gameplay!
         let upgrades = { motor: 1, sus: 1, pneu: 1 };
-        let costs = { motor: 4000, sus: 3000, pneu: 2500 };
+        let costs = { motor: 1200, sus: 1000, pneu: 800 }; // Preços iniciais acessíveis
 
         let inGame = false;
 
         const initialCarState = {
             x: 200, y: 100, vx: 0, vy: 0, angle: 0, vAngle: 0,
             width: 54, height: 18, radius: 12,
-            speed: 0.25, friction: 0.98, gravity: 0.4,
+            speed: 0.23, friction: 0.975, gravity: 0.4,
             isGrounded: false, fuel: 100, coins: 0, distance: 0, alive: true
         };
         let car = { ...initialCarState };
@@ -285,7 +285,7 @@
             if (totalCoins >= costs[type] && upgrades[type] < 5) {
                 totalCoins -= costs[type];
                 upgrades[type]++;
-                costs[type] = Math.floor(costs[type] * 1.5);
+                costs[type] = Math.floor(costs[type] * 1.6); // Multiplicador de progressão equilibrado
                 updateGarageUI();
             }
         }
@@ -295,8 +295,8 @@
             gameOverScreen.style.display = "none";
             
             car = { ...initialCarState };
-            car.speed += (upgrades.motor - 1) * 0.05;      
-            car.friction += (upgrades.pneu - 1) * 0.003;   
+            car.speed += (upgrades.motor - 1) * 0.06;      
+            car.friction += (upgrades.pneu - 1) * 0.004;   
             
             activeItems = [];
             particles = [];
@@ -321,18 +321,23 @@
             return canvas.height - 140 + Math.sin(x * 0.005) * 65 + Math.sin(x * 0.0015) * 45;
         }
 
+        // Geração balanceada de moedas por distância
         function generateWorldElements(carX) {
-            let block = Math.floor(carX / 400);
+            let block = Math.floor(carX / 450);
             for (let i = block - 1; i <= block + 3; i++) {
                 if (!spawnMarkers[i] && i > 0) {
                     spawnMarkers[i] = true;
-                    let spawnX = i * 400 + Math.random() * 100;
-                    if (i % 3 === 0) {
+                    let spawnX = i * 450 + Math.random() * 50;
+                    
+                    // Garante 1 galão de gasolina a cada intervalo fixo justo
+                    if (i % 2 === 0) {
                         activeItems.push({ type: 'fuel', x: spawnX, y: 0, size: 14, collected: false });
-                    } else {
-                        activeItems.push({ type: 'coin', x: spawnX, y: 0, size: 8, collected: false });
-                        activeItems.push({ type: 'coin', x: spawnX + 40, y: 0, size: 8, collected: false });
                     }
+                    
+                    // Fileira justa de moedas (cada moeda vale 100 agora para equilibrar a loja)
+                    activeItems.push({ type: 'coin', x: spawnX + 100, y: 0, size: 8, collected: false });
+                    activeItems.push({ type: 'coin', x: spawnX + 140, y: 0, size: 8, collected: false });
+                    activeItems.push({ type: 'coin', x: spawnX + 180, y: 0, size: 8, collected: false });
                 }
             }
         }
@@ -369,9 +374,10 @@
             }
 
             if (car.alive) {
-                let fuelBurn = 0.07;
+                // --- CONSUMO DINÂMICO E JUSTO DE GASOLINA ---
+                let fuelBurn = 0.04; // Consumo passivo baixo por frame
                 if (keys.ArrowRight) {
-                    fuelBurn = 0.15;
+                    fuelBurn = 0.13; // Gasta mais apenas se estiver injetando combustível nas subidas
                     if(Math.random()<0.4) particles.push({ x: car.x - Math.cos(car.angle)*25, y: car.y - Math.sin(car.angle)*10, vx: -2, vy: -1, size: 5, alpha: 1 });
                 }
                 car.fuel -= fuelBurn;
@@ -386,7 +392,6 @@
                     if (keys.ArrowRight) car.vx += car.speed;
                     if (keys.ArrowLeft) car.vx -= car.speed * 0.5;
                 } else {
-                    // No ar, os botões servem para equilibrar e controlar a inclinação do veículo
                     if (keys.ArrowRight) car.vAngle += 0.01;
                     if (keys.ArrowLeft) car.vAngle -= 0.01;
                 }
@@ -425,12 +430,18 @@
 
             generateWorldElements(car.x);
 
+            // Sistema de Coleta rebalanceado
             activeItems.forEach(item => {
                 if (!item.y_fixed) { item.y = getTerrain(item.x) - (item.type==='fuel'?25:20); item.y_fixed = true; }
                 if (!item.collected && Math.abs(car.x - item.x) < 30 && Math.abs(car.y - item.y) < 30) {
                     item.collected = true;
-                    if (item.type === 'coin') { car.coins += 500; coinScoreEl.innerText = car.coins; }
-                    else { car.fuel = Math.min(100, car.fuel + 50); fuelGaugeEl.style.background = "#2ecc71"; }
+                    if (item.type === 'coin') { 
+                        car.coins += 100; // Valor justo por moeda coletada
+                        coinScoreEl.innerText = car.coins; 
+                    } else { 
+                        car.fuel = Math.min(100, car.fuel + 45); // Galão recupera 45% do tanque
+                        fuelGaugeEl.style.background = "#2ecc71"; 
+                    }
                 }
             });
 
