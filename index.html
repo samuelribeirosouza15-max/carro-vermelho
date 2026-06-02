@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Versão Completa</title>
+    <title>Hill Climb Racing - Moedas Ajustadas</title>
     <style>
         body {
             margin: 0;
@@ -264,7 +264,7 @@
         let costs = JSON.parse(localStorage.getItem("hc_costs")) || { motor: 1200, sus: 1000, pneu: 800 };
 
         let inGame = false;
-        let airTimeFrames = 0; // Conta a duração do pulo
+        let airTimeFrames = 0; 
 
         const initialCarState = {
             x: 200, y: 100, vx: 0, vy: 0, angle: 0, vAngle: 0,
@@ -279,7 +279,6 @@
         let activeItems = [];
         let clouds = [];
 
-        // Inicializa algumas nuvens ao fundo
         for(let i=0; i<5; i++) {
             clouds.push({ x: Math.random() * canvas.width, y: 40 + Math.random()*80, size: 30 + Math.random()*20, speed: 0.2 + Math.random()*0.3 });
         }
@@ -300,7 +299,6 @@
             garageCoinsTxt.innerText = totalCoins.toLocaleString('pt-BR');
             garageHsTxt.innerText = highscore;
             
-            // Salva dados locais no navegador
             localStorage.setItem("hc_coins", totalCoins);
             localStorage.setItem("hc_highscore", highscore);
             localStorage.setItem("hc_upgrades", JSON.stringify(upgrades));
@@ -391,7 +389,6 @@
         }
 
         function drawGauge(x, y, radius, value, minVal, maxVal, label, unit, color, forceRedFlash = false) {
-            // Se estiver cortando giro, muda o fundo do relógio para vermelho piscante
             if (forceRedFlash && Math.floor(Date.now() / 100) % 2 === 0) {
                 ctx.fillStyle = "rgba(192, 57, 43, 0.9)";
             } else {
@@ -422,9 +419,8 @@
         }
 
         function update() {
-            // Movimentar as nuvens de forma contínua em segundo plano
             clouds.forEach(c => {
-                if(inGame && car.alive) c.x -= car.vx * 0.1; // Efeito Parallax em relação ao carro
+                if(inGame && car.alive) c.x -= car.vx * 0.1; 
                 c.x -= c.speed;
                 if(c.x + c.size * 2 < 0) c.x = canvas.width + c.size;
             });
@@ -466,14 +462,12 @@
             const groundBackY = getTerrain(car.x - 18);
             const targetAngle = Math.atan2(groundAheadY - groundBackY, 36);
 
-            // --- SISTEMA GERENCIADOR DE IMPACTO E AIR TIME ---
             if (car.y + car.radius >= groundY) {
                 car.y = groundY - car.radius;
                 if (car.vy > 0) car.vy = car.vx * Math.sin(targetAngle);
                 
-                // Se pousou após um voo longo, recebe o prêmio em dinheiro!
                 if (!car.isGrounded && airTimeFrames > 50) {
-                    let bonus = Math.floor(airTimeFrames * 3);
+                    let bonus = Math.floor(airTimeFrames * 1.5);
                     car.coins += bonus;
                     coinScoreEl.innerText = car.coins;
                 }
@@ -495,10 +489,9 @@
                 car.isGrounded = false;
                 if (car.alive) {
                     airTimeFrames++;
-                    // Mostra o HUD de voo dinâmico na tela a partir de certa altura
                     if (airTimeFrames > 50) {
                         airtimeAlertEl.style.display = "block";
-                        airtimeBonusEl.innerText = "+" + Math.floor(airTimeFrames * 3) + " BÔNUS";
+                        airtimeBonusEl.innerText = "+" + Math.floor(airTimeFrames * 1.5) + " BÔNUS";
                     }
                 }
             }
@@ -513,7 +506,7 @@
                 if (!item.collected && Math.abs(car.x - item.x) < 30 && Math.abs(car.y - item.y) < 30) {
                     item.collected = true;
                     if (item.type === 'coin') { 
-                        car.coins += 100; 
+                        car.coins += 50; // Alterado com sucesso para 50 moedas
                         coinScoreEl.innerText = car.coins; 
                     } else { 
                         car.fuel = Math.min(100, car.fuel + 45); 
@@ -528,10 +521,9 @@
             fuelGaugeEl.style.width = car.fuel + "%";
             if (car.fuel < 25) fuelGaugeEl.style.background = "#e74c3c";
 
-            // --- DESENHAR TELAS ---
+            // --- DESENHAR ---
             ctx.fillStyle = "#74b9ff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Desenhar Nuvens ao fundo (Efeito Parallax)
             ctx.fillStyle = "rgba(255,255,255,0.75)";
             clouds.forEach(c => {
                 ctx.beginPath();
@@ -574,13 +566,12 @@
             ctx.restore();
             ctx.restore();
 
-            // --- LÓGICA DO PAINEL ANALÓGICO COM CORTADOR DE GIRO ---
             let speedKmh = Math.abs(car.vx) * 160; 
             let mockRPM = keys.ArrowRight ? 3000 + (speedKmh * 35) : 900 + (speedKmh * 15);
             
             let redlineFlash = false;
             if (!car.isGrounded && keys.ArrowRight) { 
-                mockRPM = 7600 + Math.random() * 350; // Cortando giro no limite máximo!
+                mockRPM = 7600 + Math.random() * 350; 
                 redlineFlash = true; 
             }
 
