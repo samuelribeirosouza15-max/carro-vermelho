@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Economia Balanceada</title>
+    <title>Hill Climb Racing - Versão Completa</title>
     <style>
         body {
             margin: 0;
@@ -31,7 +31,7 @@
             display: block;
         }
 
-        /* TELA DA GARAGEM / MENU */
+        /* TELA DA GARAGEM */
         #garage-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -53,7 +53,9 @@
         }
 
         .garage-title { font-size: 32px; text-shadow: 3px 3px 0 #000; color: #fffa65; }
+        .garage-stats { text-align: right; }
         .garage-coins { font-size: 24px; color: #f1c40f; text-shadow: 2px 2px 0 #000; }
+        .garage-highscore { font-size: 16px; color: #bdc3c7; text-shadow: 1px 1px 0 #000; margin-top: 5px; }
 
         .upgrades-container {
             display: flex;
@@ -135,6 +137,26 @@
         }
         .fuel-bar { width: 100%; height: 100%; background: #2ecc71; }
 
+        /* AVISO DE AIR TIME */
+        #airtime-alert {
+            position: absolute;
+            top: 100px;
+            width: 100%;
+            text-align: center;
+            color: #fffa65;
+            font-size: 26px;
+            text-shadow: 3px 3px 0 #000;
+            display: none;
+            pointer-events: none;
+            z-index: 6;
+            animation: pulse 0.2s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+
         #game-over-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -163,7 +185,10 @@
         <div id="garage-screen">
             <div class="garage-header">
                 <div class="garage-title">GARAGEM</div>
-                <div class="garage-coins">🪙 <span id="garage-coins-txt">0</span></div>
+                <div class="garage-stats">
+                    <div class="garage-coins">🪙 <span id="garage-coins-txt">0</span></div>
+                    <div class="garage-highscore">🏆 RECORDE: <span id="garage-hs-txt">0</span>m</div>
+                </div>
             </div>
 
             <div class="upgrades-container">
@@ -190,6 +215,8 @@
             <button class="btn-start" onclick="startGame()">CORRER</button>
         </div>
 
+        <div id="airtime-alert">AIR TIME!<br><span id="airtime-bonus">+0</span></div>
+
         <div class="hud">
             <div class="hud-item coin-txt">🪙 MOEDAS: <span id="coin-score">0</span></div>
             <div class="hud-item" style="color: #fff">🏁 DISTÂNCIA: <span id="dist-score">0</span>m</div>
@@ -205,12 +232,12 @@
 
         <div id="game-over-screen">
             <h1 id="fail-reason">GAME OVER</h1>
-            <p>Moedas salvas na sua conta!</p>
+            <p>Resultado salvo na oficina!</p>
             <button class="btn-menu" onclick="backToGarage()">VOLTAR P/ GARAGEM</button>
         </div>
         
         <div class="instructions">
-            Controles: <span class="key">➡️</span> GAS (Acelerar) | <span class="key">⬅️</span> BRAKE (Frear / Ré)
+            Controles: <span class="key">➡️</span> GAS (Acelerar) | <span class="key">⬅️</span> BRAKE (Frear / Inclinar)
         </div>
     </div>
 
@@ -225,13 +252,19 @@
         const failReasonEl = document.getElementById("fail-reason");
         const garageScreen = document.getElementById("garage-screen");
         const garageCoinsTxt = document.getElementById("garage-coins-txt");
+        const garageHsTxt = document.getElementById("garage-hs-txt");
+        const airtimeAlertEl = document.getElementById("airtime-alert");
+        const airtimeBonusEl = document.getElementById("airtime-bonus");
 
-        // --- SISTEMA ECONÔMICO CORRIGIDO (JUSTO) ---
-        let totalCoins = 0; // Começa do zero para valorizar a gameplay!
-        let upgrades = { motor: 1, sus: 1, pneu: 1 };
-        let costs = { motor: 1200, sus: 1000, pneu: 800 }; // Preços iniciais acessíveis
+        // --- SISTEMA ECONÔMICO E SALVAMENTO ---
+        let totalCoins = parseInt(localStorage.getItem("hc_coins")) || 0; 
+        let highscore = parseInt(localStorage.getItem("hc_highscore")) || 0;
+        
+        let upgrades = JSON.parse(localStorage.getItem("hc_upgrades")) || { motor: 1, sus: 1, pneu: 1 };
+        let costs = JSON.parse(localStorage.getItem("hc_costs")) || { motor: 1200, sus: 1000, pneu: 800 };
 
         let inGame = false;
+        let airTimeFrames = 0; // Conta a duração do pulo
 
         const initialCarState = {
             x: 200, y: 100, vx: 0, vy: 0, angle: 0, vAngle: 0,
@@ -244,6 +277,12 @@
         let particles = [];
         let spawnMarkers = {};
         let activeItems = [];
+        let clouds = [];
+
+        // Inicializa algumas nuvens ao fundo
+        for(let i=0; i<5; i++) {
+            clouds.push({ x: Math.random() * canvas.width, y: 40 + Math.random()*80, size: 30 + Math.random()*20, speed: 0.2 + Math.random()*0.3 });
+        }
 
         const keys = { ArrowRight: false, ArrowLeft: false };
 
@@ -259,7 +298,14 @@
 
         function updateGarageUI() {
             garageCoinsTxt.innerText = totalCoins.toLocaleString('pt-BR');
+            garageHsTxt.innerText = highscore;
             
+            // Salva dados locais no navegador
+            localStorage.setItem("hc_coins", totalCoins);
+            localStorage.setItem("hc_highscore", highscore);
+            localStorage.setItem("hc_upgrades", JSON.stringify(upgrades));
+            localStorage.setItem("hc_costs", JSON.stringify(costs));
+
             ['motor', 'sus', 'pneu'].forEach(type => {
                 document.getElementById(`lvl-${type}`).innerText = upgrades[type];
                 let container = document.getElementById(`bars-${type}`);
@@ -285,7 +331,7 @@
             if (totalCoins >= costs[type] && upgrades[type] < 5) {
                 totalCoins -= costs[type];
                 upgrades[type]++;
-                costs[type] = Math.floor(costs[type] * 1.6); // Multiplicador de progressão equilibrado
+                costs[type] = Math.floor(costs[type] * 1.6);
                 updateGarageUI();
             }
         }
@@ -293,6 +339,7 @@
         function startGame() {
             garageScreen.style.display = "none";
             gameOverScreen.style.display = "none";
+            airtimeAlertEl.style.display = "none";
             
             car = { ...initialCarState };
             car.speed += (upgrades.motor - 1) * 0.06;      
@@ -301,6 +348,7 @@
             activeItems = [];
             particles = [];
             spawnMarkers = {};
+            airTimeFrames = 0;
             coinScoreEl.innerText = "0";
             distScoreEl.innerText = "0";
             fuelGaugeEl.style.width = "100%";
@@ -311,6 +359,9 @@
 
         function backToGarage() {
             totalCoins += car.coins; 
+            if(car.distance > highscore) {
+                highscore = car.distance;
+            }
             gameOverScreen.style.display = "none";
             garageScreen.style.display = "flex";
             inGame = false;
@@ -321,7 +372,6 @@
             return canvas.height - 140 + Math.sin(x * 0.005) * 65 + Math.sin(x * 0.0015) * 45;
         }
 
-        // Geração balanceada de moedas por distância
         function generateWorldElements(carX) {
             let block = Math.floor(carX / 450);
             for (let i = block - 1; i <= block + 3; i++) {
@@ -329,12 +379,10 @@
                     spawnMarkers[i] = true;
                     let spawnX = i * 450 + Math.random() * 50;
                     
-                    // Garante 1 galão de gasolina a cada intervalo fixo justo
                     if (i % 2 === 0) {
                         activeItems.push({ type: 'fuel', x: spawnX, y: 0, size: 14, collected: false });
                     }
                     
-                    // Fileira justa de moedas (cada moeda vale 100 agora para equilibrar a loja)
                     activeItems.push({ type: 'coin', x: spawnX + 100, y: 0, size: 8, collected: false });
                     activeItems.push({ type: 'coin', x: spawnX + 140, y: 0, size: 8, collected: false });
                     activeItems.push({ type: 'coin', x: spawnX + 180, y: 0, size: 8, collected: false });
@@ -342,8 +390,14 @@
             }
         }
 
-        function drawGauge(x, y, radius, value, minVal, maxVal, label, unit, color) {
-            ctx.fillStyle = "rgba(44, 62, 80, 0.85)";
+        function drawGauge(x, y, radius, value, minVal, maxVal, label, unit, color, forceRedFlash = false) {
+            // Se estiver cortando giro, muda o fundo do relógio para vermelho piscante
+            if (forceRedFlash && Math.floor(Date.now() / 100) % 2 === 0) {
+                ctx.fillStyle = "rgba(192, 57, 43, 0.9)";
+            } else {
+                ctx.fillStyle = "rgba(44, 62, 80, 0.85)";
+            }
+            
             ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
             ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.stroke();
 
@@ -368,17 +422,23 @@
         }
 
         function update() {
+            // Movimentar as nuvens de forma contínua em segundo plano
+            clouds.forEach(c => {
+                if(inGame && car.alive) c.x -= car.vx * 0.1; // Efeito Parallax em relação ao carro
+                c.x -= c.speed;
+                if(c.x + c.size * 2 < 0) c.x = canvas.width + c.size;
+            });
+
             if (!inGame) {
                 requestAnimationFrame(update);
                 return;
             }
 
             if (car.alive) {
-                // --- CONSUMO DINÂMICO E JUSTO DE GASOLINA ---
-                let fuelBurn = 0.04; // Consumo passivo baixo por frame
+                let fuelBurn = 0.04; 
                 if (keys.ArrowRight) {
-                    fuelBurn = 0.13; // Gasta mais apenas se estiver injetando combustível nas subidas
-                    if(Math.random()<0.4) particles.push({ x: car.x - Math.cos(car.angle)*25, y: car.y - Math.sin(car.angle)*10, vx: -2, vy: -1, size: 5, alpha: 1 });
+                    fuelBurn = 0.13; 
+                    if(Math.random()<0.4 && car.isGrounded) particles.push({ x: car.x - Math.cos(car.angle)*25, y: car.y - Math.sin(car.angle)*10, vx: -2, vy: -1, size: 5, alpha: 1 });
                 }
                 car.fuel -= fuelBurn;
 
@@ -406,9 +466,19 @@
             const groundBackY = getTerrain(car.x - 18);
             const targetAngle = Math.atan2(groundAheadY - groundBackY, 36);
 
+            // --- SISTEMA GERENCIADOR DE IMPACTO E AIR TIME ---
             if (car.y + car.radius >= groundY) {
                 car.y = groundY - car.radius;
                 if (car.vy > 0) car.vy = car.vx * Math.sin(targetAngle);
+                
+                // Se pousou após um voo longo, recebe o prêmio em dinheiro!
+                if (!car.isGrounded && airTimeFrames > 50) {
+                    let bonus = Math.floor(airTimeFrames * 3);
+                    car.coins += bonus;
+                    coinScoreEl.innerText = car.coins;
+                }
+                airTimeFrames = 0;
+                airtimeAlertEl.style.display = "none";
                 car.isGrounded = true;
 
                 let susFactor = 0.3 + (upgrades.sus * 0.06); 
@@ -423,6 +493,14 @@
                 }
             } else {
                 car.isGrounded = false;
+                if (car.alive) {
+                    airTimeFrames++;
+                    // Mostra o HUD de voo dinâmico na tela a partir de certa altura
+                    if (airTimeFrames > 50) {
+                        airtimeAlertEl.style.display = "block";
+                        airtimeBonusEl.innerText = "+" + Math.floor(airTimeFrames * 3) + " BÔNUS";
+                    }
+                }
             }
 
             let currentDist = Math.floor(car.x / 10) - 20;
@@ -430,16 +508,15 @@
 
             generateWorldElements(car.x);
 
-            // Sistema de Coleta rebalanceado
             activeItems.forEach(item => {
                 if (!item.y_fixed) { item.y = getTerrain(item.x) - (item.type==='fuel'?25:20); item.y_fixed = true; }
                 if (!item.collected && Math.abs(car.x - item.x) < 30 && Math.abs(car.y - item.y) < 30) {
                     item.collected = true;
                     if (item.type === 'coin') { 
-                        car.coins += 100; // Valor justo por moeda coletada
+                        car.coins += 100; 
                         coinScoreEl.innerText = car.coins; 
                     } else { 
-                        car.fuel = Math.min(100, car.fuel + 45); // Galão recupera 45% do tanque
+                        car.fuel = Math.min(100, car.fuel + 45); 
                         fuelGaugeEl.style.background = "#2ecc71"; 
                     }
                 }
@@ -451,8 +528,18 @@
             fuelGaugeEl.style.width = car.fuel + "%";
             if (car.fuel < 25) fuelGaugeEl.style.background = "#e74c3c";
 
-            // --- DESENHAR ---
+            // --- DESENHAR TELAS ---
             ctx.fillStyle = "#74b9ff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Desenhar Nuvens ao fundo (Efeito Parallax)
+            ctx.fillStyle = "rgba(255,255,255,0.75)";
+            clouds.forEach(c => {
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, c.size, 0, Math.PI*2);
+                ctx.arc(c.x + c.size*0.6, c.y - c.size*0.2, c.size*0.8, 0, Math.PI*2);
+                ctx.arc(c.x + c.size*1.2, c.y, c.size*0.6, 0, Math.PI*2);
+                ctx.fill();
+            });
 
             ctx.save();
             ctx.translate(-car.x + 200, 0);
@@ -487,13 +574,18 @@
             ctx.restore();
             ctx.restore();
 
-            // Relógios analógicos
+            // --- LÓGICA DO PAINEL ANALÓGICO COM CORTADOR DE GIRO ---
             let speedKmh = Math.abs(car.vx) * 160; 
             let mockRPM = keys.ArrowRight ? 3000 + (speedKmh * 35) : 900 + (speedKmh * 15);
-            if (!car.isGrounded && keys.ArrowRight) mockRPM = 7500 + Math.random() * 500; 
+            
+            let redlineFlash = false;
+            if (!car.isGrounded && keys.ArrowRight) { 
+                mockRPM = 7600 + Math.random() * 350; // Cortando giro no limite máximo!
+                redlineFlash = true; 
+            }
 
             drawGauge(360, canvas.height - 55, 42, speedKmh, 0, 180, "SPEED", " km/h", "#e67e22");
-            drawGauge(540, canvas.height - 55, 42, mockRPM, 0, 8000, "RPM", "", "#e74c3c");
+            drawGauge(540, canvas.height - 55, 42, mockRPM, 0, 8000, "RPM", "", "#e74c3c", redlineFlash);
 
             requestAnimationFrame(update);
         }
