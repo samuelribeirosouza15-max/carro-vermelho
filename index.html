@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climb Racing - Moedas Ajustadas</title>
+    <title>Hill Climb Racing - Loja de Skins</title>
     <style>
         body {
             margin: 0;
@@ -42,7 +42,7 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 30px;
+            padding: 25px;
             z-index: 10;
         }
 
@@ -57,55 +57,96 @@
         .garage-coins { font-size: 24px; color: #f1c40f; text-shadow: 2px 2px 0 #000; }
         .garage-highscore { font-size: 16px; color: #bdc3c7; text-shadow: 1px 1px 0 #000; margin-top: 5px; }
 
-        .upgrades-container {
+        /* SELEÇÃO DE ABAS (UPGRADES / SKINS) */
+        .garage-tabs {
             display: flex;
-            justify-content: space-around;
-            margin: 20px 0;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 10px;
         }
 
-        .upgrade-card {
+        .tab-btn {
+            background: #34495e;
+            border: 2px solid #fff;
+            color: white;
+            padding: 8px 20px;
+            font-family: 'Arial Black';
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .tab-btn.active {
+            background: #3498db;
+            box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+        }
+
+        /* PAINÉIS DE CONTEÚDO */
+        .tab-content {
+            display: flex;
+            justify-content: space-around;
+            margin: 15px 0;
+            min-height: 160px;
+        }
+
+        .upgrade-card, .skin-card {
             background: rgba(0, 0, 0, 0.6);
             border: 3px solid #fff;
             border-radius: 10px;
-            padding: 15px;
-            width: 200px;
+            padding: 12px;
+            width: 180px;
             text-align: center;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .upgrade-name { font-size: 16px; color: #fff; margin-bottom: 5px; }
-        .upgrade-level { font-size: 14px; color: #3498db; margin-bottom: 10px; }
+        .upgrade-name, .skin-name { font-size: 15px; color: #fff; margin-bottom: 5px; }
+        .upgrade-level { font-size: 13px; color: #3498db; margin-bottom: 8px; }
         
         .level-bars {
             display: flex;
             justify-content: center;
             gap: 3px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
-        .bar { width: 12px; height: 12px; background: #444; border: 1px solid #fff; }
+        .bar { width: 10px; height: 10px; background: #444; border: 1px solid #fff; }
         .bar.fill { background: #2ecc71; }
 
-        .btn-upgrade {
+        /* PREVIEW DA SKIN NA LOJA */
+        .skin-preview {
+            width: 50px;
+            height: 25px;
+            margin: 10px 0;
+            border-radius: 3px;
+            box-shadow: inset 0 0 5px #000;
+        }
+
+        .btn-upgrade, .btn-skin {
             background: #e67e22;
             border: 2px solid #fff;
             border-radius: 5px;
             color: white;
-            padding: 8px 12px;
+            padding: 6px 12px;
             font-family: 'Arial Black';
-            font-size: 14px;
+            font-size: 13px;
             cursor: pointer;
             box-shadow: 0 3px 0 #a04000;
+            width: 90%;
         }
-        .btn-upgrade:active { transform: translateY(3px); box-shadow: none; }
-        .btn-upgrade:disabled { background: #7f8c8d; box-shadow: none; cursor: not-allowed; }
+        .btn-upgrade:active, .btn-skin:active { transform: translateY(3px); box-shadow: none; }
+        .btn-upgrade:disabled, .btn-skin:disabled { background: #7f8c8d; box-shadow: none; cursor: not-allowed; }
+        .btn-skin.equipped { background: #2ecc71; box-shadow: 0 3px 0 #27ae60; }
 
         .btn-start {
             background: #2ecc71;
             border: 4px solid #fff;
             border-radius: 12px;
             color: white;
-            padding: 15px 60px;
-            font-size: 28px;
+            padding: 12px 60px;
+            font-size: 26px;
             font-family: 'Arial Black';
             cursor: pointer;
             align-self: center;
@@ -137,36 +178,21 @@
         }
         .fuel-bar { width: 100%; height: 100%; background: #2ecc71; }
 
-        /* AVISO DE AIR TIME */
         #airtime-alert {
             position: absolute;
-            top: 100px;
-            width: 100%;
-            text-align: center;
-            color: #fffa65;
-            font-size: 26px;
-            text-shadow: 3px 3px 0 #000;
-            display: none;
-            pointer-events: none;
-            z-index: 6;
-            animation: pulse 0.2s infinite alternate;
+            top: 100px; width: 100%; text-align: center; color: #fffa65;
+            font-size: 26px; text-shadow: 3px 3px 0 #000; display: none;
+            pointer-events: none; z-index: 6; animation: pulse 0.2s infinite alternate;
         }
 
-        @keyframes pulse {
-            from { transform: scale(1); }
-            to { transform: scale(1.1); }
-        }
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
 
         #game-over-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            border-radius: 15px;
-            z-index: 8;
+            background: rgba(0,0,0,0.8); display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            border-radius: 15px; z-index: 8;
         }
         #game-over-screen h1 { color: #e74c3c; font-size: 40px; margin-bottom: 10px; text-shadow: 3px 3px 0 #000; }
         .btn-menu {
@@ -191,7 +217,12 @@
                 </div>
             </div>
 
-            <div class="upgrades-container">
+            <div class="garage-tabs">
+                <button id="tab-upgrades-btn" class="tab-btn active" onclick="switchTab('upgrades')">🔧 MECÂNICA</button>
+                <button id="tab-skins-btn" class="tab-btn" onclick="switchTab('skins')">🎨 APARÊNCIA</button>
+            </div>
+
+            <div id="panel-upgrades" class="tab-content">
                 <div class="upgrade-card">
                     <div class="upgrade-name">MOTOR</div>
                     <div class="upgrade-level">Nível <span id="lvl-motor">1</span>/5</div>
@@ -209,6 +240,29 @@
                     <div class="upgrade-level">Nível <span id="lvl-pneu">1</span>/5</div>
                     <div class="level-bars" id="bars-pneu"></div>
                     <button class="btn-upgrade" id="btn-upgrade-pneu" onclick="buyUpgrade('pneu')">800</button>
+                </div>
+            </div>
+
+            <div id="panel-skins" class="tab-content" style="display: none;">
+                <div class="skin-card">
+                    <div class="skin-name">PADRÃO</div>
+                    <div class="skin-preview" style="background: #c0392b;"></div>
+                    <button class="btn-skin equipped" id="btn-skin-default" onclick="selectSkin('default')">USANDO</button>
+                </div>
+                <div class="skin-card">
+                    <div class="skin-name">HULK</div>
+                    <div class="skin-preview" style="background: #27ae60;"></div>
+                    <button class="btn-skin" id="btn-skin-hulk" onclick="selectSkin('hulk')">500</button>
+                </div>
+                <div class="skin-card">
+                    <div class="skin-name">CYBERPUNK</div>
+                    <div class="skin-preview" style="background: #2980b9;"></div>
+                    <button class="btn-skin" id="btn-skin-cyber" onclick="selectSkin('cyber')">1.500</button>
+                </div>
+                <div class="skin-card">
+                    <div class="skin-name">OSTENTAÇÃO</div>
+                    <div class="skin-preview" style="background: #f1c40f;"></div>
+                    <button class="btn-skin" id="btn-skin-gold" onclick="selectSkin('gold')">3.000</button>
                 </div>
             </div>
 
@@ -256,12 +310,24 @@
         const airtimeAlertEl = document.getElementById("airtime-alert");
         const airtimeBonusEl = document.getElementById("airtime-bonus");
 
-        // --- SISTEMA ECONÔMICO E SALVAMENTO ---
+        // --- DADOS SALVOS DA OFICINA ---
         let totalCoins = parseInt(localStorage.getItem("hc_coins")) || 0; 
         let highscore = parseInt(localStorage.getItem("hc_highscore")) || 0;
-        
         let upgrades = JSON.parse(localStorage.getItem("hc_upgrades")) || { motor: 1, sus: 1, pneu: 1 };
         let costs = JSON.parse(localStorage.getItem("hc_costs")) || { motor: 1200, sus: 1000, pneu: 800 };
+
+        // --- NOVO: SISTEMA DE SKINS ---
+        let equippedSkin = localStorage.getItem("hc_equipped_skin") || "default";
+        let ownedSkins = JSON.parse(localStorage.getItem("hc_owned_skins")) || ["default"];
+        const skinPrices = { hulk: 500, cyber: 1500, gold: 3000 };
+        
+        // Cores das skins aplicadas ao jipe [Cor do chassi, Cor do detalhe]
+        const skinColors = {
+            default: ["#c0392b", "#e74c3c"],
+            hulk: ["#27ae60", "#2ecc71"],
+            cyber: ["#2980b9", "#3498db"],
+            gold: ["#f1c40f", "#2c3e50"]
+        };
 
         let inGame = false;
         let airTimeFrames = 0; 
@@ -295,6 +361,15 @@
             if (e.key === "ArrowLeft") keys.ArrowLeft = false;
         });
 
+        // Troca visual de abas na garagem
+        function switchTab(tab) {
+            document.getElementById('tab-upgrades-btn').className = 'tab-btn' + (tab === 'upgrades' ? ' active' : '');
+            document.getElementById('tab-skins-btn').className = 'tab-btn' + (tab === 'skins' ? ' active' : '');
+            
+            document.getElementById('panel-upgrades').style.display = tab === 'upgrades' ? 'flex' : 'none';
+            document.getElementById('panel-skins').style.display = tab === 'skins' ? 'flex' : 'none';
+        }
+
         function updateGarageUI() {
             garageCoinsTxt.innerText = totalCoins.toLocaleString('pt-BR');
             garageHsTxt.innerText = highscore;
@@ -303,7 +378,10 @@
             localStorage.setItem("hc_highscore", highscore);
             localStorage.setItem("hc_upgrades", JSON.stringify(upgrades));
             localStorage.setItem("hc_costs", JSON.stringify(costs));
+            localStorage.setItem("hc_equipped_skin", equippedSkin);
+            localStorage.setItem("hc_owned_skins", JSON.stringify(ownedSkins));
 
+            // Upgrades mecânicos
             ['motor', 'sus', 'pneu'].forEach(type => {
                 document.getElementById(`lvl-${type}`).innerText = upgrades[type];
                 let container = document.getElementById(`bars-${type}`);
@@ -323,6 +401,42 @@
                     btn.disabled = totalCoins < costs[type];
                 }
             });
+
+            // Gerenciamento dos botões da loja de skins
+            updateSkinButton("default", "default");
+            updateSkinButton("hulk", "hulk");
+            updateSkinButton("cyber", "cyber");
+            updateSkinButton("gold", "gold");
+        }
+
+        function updateSkinButton(id, skinName) {
+            let btn = document.getElementById(`btn-skin-${id}`);
+            if (equippedSkin === skinName) {
+                btn.innerText = "USANDO";
+                btn.className = "btn-skin equipped";
+                btn.disabled = false;
+            } else if (ownedSkins.includes(skinName)) {
+                btn.innerText = "EQUIPAR";
+                btn.className = "btn-skin";
+                btn.style.background = "#3498db";
+                btn.disabled = false;
+            } else {
+                btn.innerText = skinPrices[skinName].toLocaleString('pt-BR');
+                btn.className = "btn-skin";
+                btn.style.background = "#e67e22";
+                btn.disabled = totalCoins < skinPrices[skinName];
+            }
+        }
+
+        function selectSkin(skinName) {
+            if (ownedSkins.includes(skinName)) {
+                equippedSkin = skinName;
+            } else if (totalCoins >= skinPrices[skinName]) {
+                totalCoins -= skinPrices[skinName];
+                ownedSkins.push(skinName);
+                equippedSkin = skinName;
+            }
+            updateGarageUI();
         }
 
         function buyUpgrade(type) {
@@ -506,7 +620,7 @@
                 if (!item.collected && Math.abs(car.x - item.x) < 30 && Math.abs(car.y - item.y) < 30) {
                     item.collected = true;
                     if (item.type === 'coin') { 
-                        car.coins += 50; // Alterado com sucesso para 50 moedas
+                        car.coins += 50; 
                         coinScoreEl.innerText = car.coins; 
                     } else { 
                         car.fuel = Math.min(100, car.fuel + 45); 
@@ -556,10 +670,12 @@
             // Fumaça
             particles.forEach(p => { ctx.fillStyle = `rgba(140,140,140,${p.alpha})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); });
 
-            // Carro
+            // --- DESENHO DO CARRO COM A SKIN EQUIPADA ---
+            let colors = skinColors[equippedSkin] || skinColors["default"];
+            
             ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
-            ctx.fillStyle = "#c0392b"; ctx.fillRect(-car.width/2, -car.height, car.width, car.height);
-            ctx.fillStyle = "#e74c3c"; ctx.fillRect(-car.width/2, -car.height-6, 18, 6);
+            ctx.fillStyle = colors[0]; ctx.fillRect(-car.width/2, -car.height, car.width, car.height);
+            ctx.fillStyle = colors[1]; ctx.fillRect(-car.width/2, -car.height-6, 18, 6);
             ctx.fillStyle = "#3498db"; ctx.fillRect(8, -car.height-12, 14, 12);
             ctx.fillStyle = "#2c3e50"; ctx.beginPath(); ctx.arc(-car.width/3, 2, car.radius, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(car.width/3, 2, car.radius, 0, Math.PI*2); ctx.fill();
